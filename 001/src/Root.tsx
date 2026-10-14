@@ -1,7 +1,9 @@
 import {Composition} from 'remotion';
 import {FractalFlowers, DURATION} from './FractalFlowers';
+import {SingleImageMorph, MORPH_DURATION} from './SingleImageMorph';
 
 export const Root: React.FC = () => (
+  <>
   <Composition
     id="FractalFlowers"
     component={FractalFlowers}
@@ -10,4 +12,6 @@ export const Root: React.FC = () => (
     width={720}
     height={1280}
   />
+  <Composition id="SingleImageMorph" component={SingleImageMorph} durationInFrames={MORPH_DURATION} fps={30} width={720} height={1280} />
+  </>
 );
