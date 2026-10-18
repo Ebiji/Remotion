@@ -8,7 +8,7 @@ import {BUILDING_VERT, BUILDING_FRAG, GROUND_VERT, GROUND_FRAG, SKY_VERT, SKY_FR
 import {PLANT_VERT, PLANT_FRAG, HERO_VERT, HERO_FRAG, SUN_VERT, SUN_FRAG, PART_VERT, PART_FRAG, POST_FRAG} from './glsl2';
 import {buildSpecies, mulberry} from './plants';
 
-const HERO_POS = new THREE.Vector3(0, 235, -600);
+const HERO_POS = new THREE.Vector3(0, 215, -560);
 
 /** Catmull-Romで滑らかに補間するキーフレーム */
 const curve = (keys: [number, number][], t: number) => {
@@ -28,7 +28,9 @@ const curve = (keys: [number, number][], t: number) => {
 const sstep = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 // 曲の展開に合わせたカメラ高度 (秒, y)
-const CAM_Y: [number, number][] = [[0, 3.4], [14, 4.2], [24, 7], [48, 12], [64, 19], [70, 24], [73, 46], [84, 60], [95, 52], [97, 9], [100, 6], [104, 42], [120, 36], [130, 18], [144, 9]];
+const CAM_Y: [number, number][] = [[0, 5], [20, 6], [60, 8], [72, 10], [96, 8], [100, 5], [130, 10], [144, 6]];
+const L = A.LEN;
+const roadR = (w: number) => 34 * Math.sin(6.2832 * w / L) + 12 * Math.sin(12.5664 * w / L + 1.3);
 const cumKick = (() => { const o = new Float32Array(A.FRAMES + 2); let s = 0; for (let f = 0; f < o.length; f++) { s += A.kick[f]; o[f] = s; } return o; })();
 
 export class MVScene {
@@ -80,12 +82,12 @@ export class MVScene {
     const SLOTS = 16, LANES = 5, pitch = A.LEN / SLOTS;
     type Inst = {a: number[]; b: number[]; sp: number; w: number[]};
     const insts: Inst[] = [];
-    const HMAX = [[14, 14], [28, 28], [45, 40], [60, 50], [80, 70]];
+    const HMAX = [[10, 12], [16, 18], [22, 24], [28, 28], [34, 34]];
     const STREET = 24;
     for (const side of [-1, 1]) for (let l = 0; l < LANES; l++) for (let s = 0; s < SLOTS; s++) {
       const w = 11 + R() * 6, d = 12 + R() * 5;
       const x = side * (STREET + l * 21 + w * 0.5 + (R() - 0.5) * 2);
-      const tall = R() < 0.12 ? 1.9 : 1;
+      const tall = R() < 0.12 ? 1.6 : 1;
       const hmax = (HMAX[l][0] + R() * HMAX[l][1]) * tall;
       const band = Math.min(15, Math.floor(l * 3 + R() * 3));
       insts.push({a: [x, s * pitch + (R() - 0.5) * 2, w, hmax], b: [R(), d, band, l], sp: Math.floor(R() * 4), w: [0, 0, 0, side]});
@@ -141,11 +143,11 @@ export class MVScene {
     const m2 = makePetals(89, -1, 0.5); m2.scale.setScalar(0.5); m2.position.z = 14;
     const m3 = makePetals(34, 1, 0.25); m3.scale.setScalar(0.22); m3.position.z = 26;
     this.heroGroup.position.copy(HERO_POS);
-    this.heroGroup.scale.setScalar(1.9);
+    this.heroGroup.scale.setScalar(3.6);
     this.scene.add(this.heroGroup);
     const sunMat = mk(SUN_VERT, SUN_FRAG, {}, {transparent: true, blending: THREE.AdditiveBlending, depthWrite: false});
     this.sun = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), sunMat); this.sun.frustumCulled = false;
-    this.sun.position.z = 34; this.sun.scale.setScalar(60);
+    this.sun.position.z = 34; this.sun.scale.setScalar(45);
     this.heroGroup.add(this.sun);
 
     // ---- 花粉 / 胞子 ----
@@ -198,49 +200,33 @@ export class MVScene {
     const cy = curve(CAM_Y, t) + kick * 0.9;
     const low = 1 - sstep(10, 22, cy);
     const cx = (Math.sin(t * 0.21) * 4 + Math.sin(t * 0.07 + 1) * 3) * (0.5 + 0.5 * low + 0.6 * (1 - low)) + Math.sin(t * 0.9) * 0.4 * bass;
-    // 道がうねる (曲がり角): 遠方ほど横にずれる
-    const bend = 0.0013 * Math.sin(t * 0.24 + 0.4) * sstep(8, 24, t) * (0.55 + 0.45 * inten) * (1 - sstep(95, 97, t) * (1 - sstep(99, 101, t)));
-    U.uBend.value = bend; U.uKickIdx.value = A.kickIdx[f];
-    const lookYaw = Math.atan(2 * bend * 150) * 0.8;
-    // カットの長さ: 山場は8拍、中間は16拍、静かな所はなめらかな前進
-    const cutLen = inten > 0.55 ? 8 : inten > 0.34 ? 16 : 0;
-    const cutIdx = cutLen ? Math.floor(bp / cutLen) : 0;
-    const tau = cutLen ? ((bp / cutLen) % 1 + 1) % 1 : 0;
-    const SHOTS = ['low', 'sideL', 'top', 'topdown', 'dutch', 'sideR', 'chase'];
-    const shotOf = (c: number) => (c % 3 === 0 ? 'fwd' : SHOTS[Math.floor(mulberry(c * 7919 + 13)() * SHOTS.length)]);
-    let shot = cutLen ? shotOf(cutIdx) : 'fwd';
-    if (shot !== 'fwd' && shot === shotOf(cutIdx - 1) && cutIdx % 3 !== 1) shot = SHOTS[(SHOTS.indexOf(shot) + 3) % SHOTS.length];
-    let pos = new THREE.Vector3(cx, cy, 0);
-    let yaw = lookYaw, pitch = Math.atan2(95 * (1 - sstep(18, 60, cy) * 1.15), 300), roll = 0.045 * Math.sin(t * 0.4);
-    let fovAdd = 0;
-    switch (shot) {
-      case 'low': pos.set(cx * 0.5, 2.2, 0); pitch = 0.36 + 0.12 * tau; break;
-      case 'sideL': pos.set(-9, 13, 0); yaw = 0.85 - 0.35 * tau; pitch = 0.1; roll = -0.06; break;
-      case 'sideR': pos.set(9, 13, 0); yaw = -0.85 + 0.35 * tau; pitch = 0.1; roll = 0.06; break;
-      case 'top': pos.set(cx * 0.4, 58 + 14 * tau, 0); pitch = -0.62; yaw = lookYaw; fovAdd = 6; break;
-      case 'topdown': pos.set(0, 108, 0); pitch = -1.5; yaw = lookYaw * 0.5; roll = t * 0.12; fovAdd = 12; break;
-      case 'chase': pos.set(0, 22, 0); pitch = -0.28; yaw = -0.55 + 1.1 * tau; fovAdd = 8; break;
-      case 'dutch': pos.set(6, 8, 0); roll = 0.32; fovAdd = 14; pitch = 0.2; break;
-    }
-    const cutPulse = cutLen ? Math.exp(-(((bp % cutLen) + cutLen) % cutLen) * 3.5) : 0;
+    // 曲がりくねる道に沿って進む: 視線は先のカーブを向き、体をバンクさせる
+    U.uKickIdx.value = A.kickIdx[f];
+    const road = (zz: number) => roadR(zz + A.travel[f]) - roadR(34 + A.travel[f]);
+    const lookYaw = Math.atan2(road(150) * 0.75, 150);
+    const pos = new THREE.Vector3(Math.sin(t * 0.21) * 1.5, cy, 0);
+    const pitch = 0.28;
+    const roll = -0.4 * lookYaw + 0.02 * Math.sin(t * 0.4);
+    const cutPulse = 0;
     this.camera.position.copy(pos);
-    const dir = new THREE.Vector3(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
+    const dir = new THREE.Vector3(Math.sin(lookYaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(lookYaw) * Math.cos(pitch));
     this.camera.up.set(0, 1, 0);
     this.camera.lookAt(pos.clone().addScaledVector(dir, 300));
     const rollDir = A.snareIdx[f] % 2 ? 1 : -1;
-    this.camera.rotateZ(roll + rollDir * 0.05 * snare * (0.4 + inten));
+    this.camera.rotateZ(roll + rollDir * 0.04 * snare * (0.4 + inten));
+    const fovAdd = 0;
     this.camera.fov = 58 + fovAdd + 13 * kick * (0.5 + inten) + 5 * snare;
     this.camera.updateProjectionMatrix();
 
     // 巨大花
-    const bloom = Math.min(1.15, 0.12 + inten * 1.0 + 0.12 * kick);
+    const bloom = Math.min(1.2, 0.55 + inten * 0.55 + 0.1 * kick);
     const spinBase = t * 0.07 + cumKick[f] * 0.012;
     this.heroes.forEach((h, i) => {
       h.mat.uniforms.uBloom.value = Math.min(1.2, bloom * (1 + i * 0.05));
       h.mat.uniforms.uSpin.value = spinBase * h.spin * (1 + i * 0.6);
     });
     this.heroGroup.rotation.z = Math.sin(t * 0.05) * 0.12;
-    this.heroGroup.scale.setScalar(1.9 * (1 + 0.05 * kick));
+    this.heroGroup.scale.setScalar(3.6 * (1 + 0.05 * kick));
     const hd = new THREE.Vector3().subVectors(HERO_POS, pos).normalize();
     this.sky.uniforms.uHeroDir.value.copy(hd);
     this.sky.uniforms.uKal.value = Math.floor(bar / 4) % 4;
@@ -252,8 +238,8 @@ export class MVScene {
     const P = this.post.uniforms;
     P.uKal.value = kalOn; P.uFlash.value = Math.max(0.2 * snare * inten, dropHit, 0.3 * cutPulse);
     P.uZoom.value = 0.05 * kick * (0.35 + inten) + 0.02 * snare + 0.07 * cutPulse;
-    this.bloom.strength = 0.28 + 0.3 * kick + 0.15 * inten;
-    this.bloom.threshold = 0.9; this.bloom.radius = 0.75;
+    this.bloom.strength = 0.3 + 0.3 * kick + 0.2 * inten;
+    this.bloom.threshold = 0.85; this.bloom.radius = 0.75;
     const t0 = performance.now();
     this.composer.render();
     if (this.timing) { const gl = this.renderer.getContext(); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4)); }

@@ -54,14 +54,14 @@ void main(){
   vec3 base = rainbow(hue);
   float ndl = 0.5+0.5*dot(N, normalize(vec3(0.35,0.85,0.4)));
   float rim = pow(1.0-max(dot(N,V),0.0), 2.2);
-  vec3 col = base*(0.10 + 0.50*ndl);
+  vec3 col = base*(0.14 + 0.6*ndl);
   col += rainbow(hue+0.12)*pow(rim,3.0)*(0.3+0.2*uInten);
   if (kind > 0.5 && kind < 1.5) {          // 葉: 葉脈
     float vein = smoothstep(0.08,0.0,abs(vUV.x-0.5)-0.01) + smoothstep(0.06,0.0,abs(fract(vUV.y*7.0+abs(vUV.x-0.5)*3.0)-0.5)-0.43)*0.5;
     col += rainbow(hue+0.5)*vein*0.45*(0.5+uInten);
   } else if (kind > 1.5) {                 // 花弁: 根元は温かく先端は虹、縁に光の粒
     float tip = vUV.y;
-    col = rainbow(hue + tip*0.35)*(0.18+0.8*ndl) + rainbow(hue+tip*0.35+0.12)*rim*0.3;
+    col = rainbow(hue + tip*0.35)*(0.22+0.75*ndl) + rainbow(hue+tip*0.35+0.12)*rim*0.35;
     col += vec3(1.0,0.5,0.2)*pow(1.0-tip,5.0)*0.18;
     float dots = smoothstep(0.13,0.0,length(vec2(vUV.x-0.5, fract(tip*5.0)-0.5)*vec2(1.6,0.9)));
     col += rainbow(hue+0.2)*dots*0.2;
@@ -71,7 +71,7 @@ void main(){
     col += rainbow(hue+0.2)*flow*0.07*(0.3+uInten);
   }
   float fg = 1.0-exp(-dist*0.0046);
-  vec3 fogC = rainbow(uHue+0.55+dist*0.0006)*(0.07+0.10*uInten) + vec3(0.012,0.0,0.035);
+  vec3 fogC = rainbow(uHue+0.55+dist*0.0006)*(0.09+0.11*uInten) + vec3(0.02,0.0,0.06);
   col = mix(col, fogC, fg);
   gl_FragColor = vec4(min(col, vec3(1.7)), 1.0);
 }`;
@@ -92,7 +92,7 @@ void main(){
   float R = 100.0;
   float rad = sqrt(f)*R*0.62*(1.0 + warp*0.45*sin(ang*3.0 + uTime*0.9));   // 低音でぐにゃりと歪む
   vec2 rd = vec2(cos(ang), sin(ang));
-  float open = smoothstep(f*0.75, f*0.75+0.35, uBloom*1.2);
+  float open = smoothstep(f*0.4, f*0.4+0.3, uBloom*1.1);
   float el = mix(1.38, 0.10 + 0.45*(1.0-f), open) + (spv-0.3)*0.7*(0.4+uInten) + 0.3*uKick*(1.0-f);
   vec3 radial = vec3(rd, 0.0);
   vec3 fwd = normalize(radial*cos(el) + vec3(0.0,0.0,sin(el)));
@@ -124,14 +124,15 @@ void main(){
   float hue = vF*0.9 + vUV.y*0.22 + uHue + uHueOff;
   vec3 base = rainbow(hue);
   float shade = 0.5+0.5*dot(N,normalize(vec3(0.3,0.5,0.8)));
-  vec3 col = base*(0.14 + 0.42*shade);
+  vec3 col = base*(0.22 + 0.55*shade);
   float mid = exp(-pow(vUV.x*3.0,2.0))*(1.0-vUV.y);                 // 花弁の中心線
-  col += rainbow(hue+0.15)*mid*0.35;
+  col += rainbow(hue+0.15)*mid*0.4;
   col += rainbow(hue+0.3)*rim*0.35;
   float edge = smoothstep(0.7,1.0,abs(vUV.x));
-  col += rainbow(hue+0.55)*edge*0.28*(0.4+uInten);
-  col *= 0.75 + 0.3*uBeat + 0.4*uKick;
-  gl_FragColor = vec4(min(col, vec3(1.5)), 1.0);
+  col += rainbow(hue+0.55)*edge*(0.35+0.4*vF)*(0.5+uInten);
+  col *= 0.9 + 0.55*vF;
+  col *= 0.95 + 0.3*uBeat + 0.45*uKick;
+  gl_FragColor = vec4(min(col, vec3(1.8)), 1.0);
 }`;
 
 export const SUN_VERT = /* glsl */ `
@@ -159,7 +160,7 @@ void main(){
   vec3 s = aSeed.xyz;
   float zz = mod(s.z*uLen - uTravel*1.15, uLen);
   float t = uTime*(0.3+0.5*aSeed.w);
-  vec3 p = vec3((s.x-0.5)*180.0 + uBend*zz*zz, 1.0 + s.y*70.0, 34.0 - zz);
+  vec3 p = vec3((s.x-0.5)*180.0 + roadX(zz), 1.0 + s.y*70.0, 34.0 - zz);
   p.x += sin(t*1.3 + s.y*20.0)*5.0;
   p.y += sin(t*0.9 + s.x*30.0)*3.0 + uKick*3.0*aSeed.w;
   vec4 mv = viewMatrix*vec4(p,1.0);
@@ -207,12 +208,12 @@ void main(){
   col = mix(col, blur*0.25, clamp(0.45*(uKick+uSnare*0.5),0.0,0.5));
   col += uFlash*rainbow(uHue+rr)*0.35;
   // トーンマップ + 彩度
-  col = 1.0 - exp(-col*0.95);
+  col = 1.0 - exp(-col*1.1);
   float l = dot(col, vec3(0.299,0.587,0.114));
-  col = mix(vec3(l), col, 1.25);
+  col = mix(vec3(l), col, 1.4);
   col = pow(col, vec3(0.92));
   // ビネット + グレイン
-  col *= smoothstep(1.05, 0.25, rr*1.25);
+  col *= smoothstep(1.4, 0.4, rr*1.2);
   col += (h21(uv*uRes + uTime) - 0.5)*uGrain;
   gl_FragColor = vec4(col, 1.0);
 }`;
