@@ -1,6 +1,6 @@
 /** 共有GLSL: ユニフォーム・ノイズ・虹パレット・ビルの挙動(ビルと植物で同一計算) */
 export const COMMON = /* glsl */ `
-uniform float uTime, uTravel, uLen, uKick, uSnare, uHat, uBass, uMid, uInten, uHue, uBeat, uKickAge, uBeatPos;
+uniform float uTime, uTravel, uLen, uKick, uSnare, uHat, uBass, uMid, uInten, uHue, uBeat, uKickAge, uBeatPos, uKickIdx, uBend;
 uniform float uSpec[16];
 float h11(float p){p=fract(p*.1031);p*=p+33.33;p*=p+p;return fract(p);}
 float h21(vec2 p){vec3 p3=fract(vec3(p.xyx)*.1031);p3+=dot(p3,p3.yzx+33.33);return fract((p3.x+p3.y)*p3.z);}
@@ -22,10 +22,14 @@ Bd bldg(){
   b.zz = zz;
   b.rise = smoothstep(uLen, uLen*0.55, zz);
   b.sp = specAt(aInst2.z);
-  float grpHit = step(0.5, fract(aInst2.x*0.25 + floor(uBeatPos)*0.25 + 0.001)) ; // 4拍で順に跳ねるグループ
-  float m = 0.38 + 0.42*uInten + 0.85*b.sp*(0.6+0.6*uInten) + 0.25*uKick*h11(aInst2.x*3.7);
-  b.h = aInst.w * m * b.rise;
-  b.base = vec3(aInst.x, 0.0, 34.0 - zz);
+  float side = sign(aInst.x);
+  float alt = mod(uKickIdx, 2.0)*2.0 - 1.0;                 // キックごとに左右交互
+  float stomp = uKick*(0.35 + 0.65*step(0.0, side*alt));
+  float wave = pow(0.5+0.5*cos(6.2832*(uBeatPos*0.5 - b.zz/150.0)), 4.0); // 拍ごとに手前へ走る波
+  float eq = pow(clamp(b.sp, 0.0, 1.3), 1.3);
+  float m = 0.14 + 0.28*uInten + 1.45*eq*(0.55+0.7*uInten) + 0.85*stomp + 0.6*wave*(0.25+uInten);
+  b.h = aInst.w*min(m, 2.5)*b.rise;
+  b.base = vec3(aInst.x + uBend*b.zz*b.zz, 0.0, 34.0 - zz);
   return b;
 }
 `;
@@ -117,7 +121,8 @@ varying vec3 vW;
 void main(){
   vec3 V = cameraPosition - vW; float dist = length(V);
   float z = vW.z + uTravel;                 // 流れる座標
-  float x = vW.x;
+  float zg = max(34.0 - vW.z, 0.0);
+  float x = vW.x - uBend*zg*zg;
   vec3 col = vec3(0.012,0.008,0.03);
   // 道路 (ストリート幅14)
   float road = smoothstep(15.0,14.0,abs(x));
@@ -193,7 +198,7 @@ void main(){
   float lines = exp(-trap*4.0), web = exp(-trap2*1.6);
   vec3 mand = rainbow(trap2*0.6 + r*0.35 + uHue*1.5)*(lines*1.1 + web*0.35);
   float mmask = smoothstep(2.8, 0.6, r)*step(0.0, cz);
-  col += mand*mmask*(0.55+0.5*uInten);
+  col += mand*mmask*(0.16+0.2*uInten);
   float ring = exp(-pow((fract(r*2.2 - uTime*0.15)-0.5)*8.0,2.0));
   col += rainbow(r + uHue)*ring*0.12*(0.4+uInten)*mmask;
   // 星

@@ -51,7 +51,7 @@ export const loud = box(raw.loud, 20);
 export const inten = new Float32Array(N).map((_, f) => Math.min(1, Math.max(0, (loud[f] - 0.18) / 0.55)));
 
 const specSm: Float32Array[] = [];
-for (let b = 0; b < 16; b++) specSm.push(smooth(raw.spec.map((r) => r[b]), 0.75, 0.16));
+for (let b = 0; b < 16; b++) specSm.push(smooth(raw.spec.map((r) => r[b]), 0.95, 0.3));
 export const specAt = (f: number, out: number[]) => {
   const i = Math.min(Math.max(0, f), N - 1);
   for (let b = 0; b < 16; b++) out[b] = specSm[b][i];
