@@ -3,6 +3,7 @@ import {FractalFlowers, DURATION} from './FractalFlowers';
 import {SingleImageMorph, MORPH_DURATION} from './SingleImageMorph';
 import {MorphChain, CHAIN_DURATION} from './MorphChain';
 import {QuantumMorph, QUANTUM_DURATION} from './QuantumMorph';
+import {MouthMV, MOUTH_DURATION} from './MouthMV/MouthMV';
 
 export const Root: React.FC = () => (
   <>
@@ -18,5 +19,6 @@ export const Root: React.FC = () => (
   <Composition id="MorphChain" component={MorphChain} durationInFrames={CHAIN_DURATION} fps={30} width={720} height={1280} />
   <Composition id="QuantumMorph" component={QuantumMorph} durationInFrames={QUANTUM_DURATION} fps={30} width={720} height={1280} />
   <Composition id="QuantumMorph169" component={QuantumMorph} defaultProps={{withAudio: false}} durationInFrames={QUANTUM_DURATION} fps={30} width={1280} height={720} />
+  <Composition id="MouthMV" component={MouthMV} durationInFrames={MOUTH_DURATION} fps={30} width={1280} height={720} />
   </>
 );
