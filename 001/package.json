@@ -5,6 +5,7 @@
   "scripts": {
     "studio": "remotion studio src/index.ts",
     "render": "remotion render src/index.ts FractalFlowers out/fractal-flowers.mp4",
+    "render:quantum": "remotion render src/index.ts QuantumMorph out/quantum-morph.mp4",
     "render:chain": "remotion render src/index.ts MorphChain out/morph-chain.mp4",
     "render:morph": "remotion render src/index.ts SingleImageMorph out/single-image-morph.mp4"
   },
