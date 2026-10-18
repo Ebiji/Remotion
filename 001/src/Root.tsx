@@ -17,5 +17,6 @@ export const Root: React.FC = () => (
   <Composition id="SingleImageMorph" component={SingleImageMorph} durationInFrames={MORPH_DURATION} fps={30} width={720} height={1280} />
   <Composition id="MorphChain" component={MorphChain} durationInFrames={CHAIN_DURATION} fps={30} width={720} height={1280} />
   <Composition id="QuantumMorph" component={QuantumMorph} durationInFrames={QUANTUM_DURATION} fps={30} width={720} height={1280} />
+  <Composition id="QuantumMorph169" component={QuantumMorph} defaultProps={{withAudio: false}} durationInFrames={QUANTUM_DURATION} fps={30} width={1280} height={720} />
   </>
 );

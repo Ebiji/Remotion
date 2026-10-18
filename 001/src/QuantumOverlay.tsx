@@ -1,8 +1,6 @@
 import React from 'react';
-import {AbsoluteFill, useCurrentFrame} from 'remotion';
+import {AbsoluteFill, useCurrentFrame, useVideoConfig} from 'remotion';
 
-const W = 720;
-const H = 1280;
 // 水素原子バルマー線(nm)と色
 const LINES = [
   {nm: 410, name: 'Hδ', color: '#8a5cff'},
@@ -10,15 +8,16 @@ const LINES = [
   {nm: 486, name: 'Hβ', color: '#27d8ff'},
   {nm: 656, name: 'Hα', color: '#ff3a52'},
 ];
-const nmToX = (nm: number) => 60 + ((nm - 400) / 300) * 600;
+const nmToX = (nm: number, W: number) => W * 0.1 + ((nm - 400) / 300) * W * 0.8;
 
 /** 2つの波源の同心円→干渉縞(モアレ) */
 const Interference: React.FC = () => {
   const f = useCurrentFrame();
+  const {width: W, height: H} = useVideoConfig();
   const c1 = {x: W * (0.5 + 0.28 * Math.sin(f / 90)), y: H * (0.42 + 0.12 * Math.cos(f / 70))};
   const c2 = {x: W * (0.5 + 0.28 * Math.cos(f / 80 + 1)), y: H * (0.48 + 0.12 * Math.sin(f / 60))};
   const ring = (c: {x: number; y: number}, color: string, phase: number) =>
-    Array.from({length: 34}).map((_, k) => (
+    Array.from({length: 48}).map((_, k) => (
       <circle
         key={k}
         cx={c.x}
@@ -43,12 +42,14 @@ const Interference: React.FC = () => {
 /** 軌道を回る電子(尾を引く) */
 const Orbitals: React.FC = () => {
   const f = useCurrentFrame();
+  const {width: W, height: H} = useVideoConfig();
+  const k0 = Math.min(W, H) / 720; // 画面の短辺に合わせた拡大率
   const cx = W / 2;
   const cy = H * 0.45;
   const orbits = [
-    {rx: 190, ry: 70, tilt: 0, speed: 0.07, color: '#27d8ff'},
-    {rx: 260, ry: 100, tilt: 60, speed: -0.05, color: '#ff3aa0'},
-    {rx: 330, ry: 130, tilt: 120, speed: 0.035, color: '#8a5cff'},
+    {rx: 190 * k0, ry: 70 * k0, tilt: 0, speed: 0.07, color: '#27d8ff'},
+    {rx: 260 * k0, ry: 100 * k0, tilt: 60, speed: -0.05, color: '#ff3aa0'},
+    {rx: 330 * k0, ry: 130 * k0, tilt: 120, speed: 0.035, color: '#8a5cff'},
   ];
   return (
     <AbsoluteFill style={{mixBlendMode: 'screen', opacity: 0.85}}>
@@ -83,6 +84,7 @@ const Orbitals: React.FC = () => {
 /** 画面下部のスペクトル線(発光スペクトル) */
 const Spectrum: React.FC = () => {
   const f = useCurrentFrame();
+  const {width: W, height: H} = useVideoConfig();
   const y = H - 118;
   return (
     <AbsoluteFill>
@@ -96,10 +98,10 @@ const Spectrum: React.FC = () => {
             <stop offset="1" stopColor="#ff3a52" />
           </linearGradient>
         </defs>
-        <rect x={60} y={y} width={600} height={26} fill="url(#spec)" opacity={0.18} />
-        <rect x={60} y={y} width={600} height={26} fill="none" stroke="#fff" strokeOpacity={0.25} />
+        <rect x={W * 0.1} y={y} width={W * 0.8} height={26} fill="url(#spec)" opacity={0.18} />
+        <rect x={W * 0.1} y={y} width={W * 0.8} height={26} fill="none" stroke="#fff" strokeOpacity={0.25} />
         {LINES.map((l, i) => {
-          const x = nmToX(l.nm);
+          const x = nmToX(l.nm, W);
           const pulse = 0.55 + 0.45 * Math.sin(f / 9 - i * 1.3);
           return (
             <g key={l.nm}>

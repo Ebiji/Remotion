@@ -1,5 +1,5 @@
 import React from 'react';
-import {AbsoluteFill, Audio, Easing, Img, interpolate, staticFile, useCurrentFrame} from 'remotion';
+import {AbsoluteFill, Audio, Easing, Img, interpolate, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
 import {Bubbles, Glow, Vignette} from './Overlays';
 import {QuantumOverlay} from './QuantumOverlay';
 
@@ -7,15 +7,16 @@ import {QuantumOverlay} from './QuantumOverlay';
  * 量子力学的配色 + 連続モーフ(30秒)
  * 画像を追加するときは IMAGES に1行足すだけ(public/ に置く)。pos は縦長にトリミングする位置。
  */
+// pos = 縦長の絵を16:9にトリミングするときの見せたい位置(x% y%)。横長のとき(landscape)に効く
 const IMAGES: {src: string; pos?: string}[] = [
-  {src: 'ref2_fractal_sun.webp'},
-  {src: 'gen_kaleido.jpg'},
-  {src: 'ref1_flowers_rainbow.jpg'},
-  {src: 'ref3_fractal_tree.webp'},
-  {src: 'gen_tree.jpg'},
+  {src: 'ref2_fractal_sun.webp', pos: '50% 72%'},
+  {src: 'gen_kaleido.jpg', pos: '50% 50%'},
+  {src: 'ref1_flowers_rainbow.jpg', pos: '50% 62%'},
+  {src: 'ref3_fractal_tree.webp', pos: '50% 32%'},
+  {src: 'gen_tree.jpg', pos: '50% 22%'},
   {src: 'ref4_mandala.jpg', pos: '50% 50%'},
-  {src: 'gen_mandala.jpg'},
-  {src: 'gen_field.jpg'},
+  {src: 'gen_mandala.jpg', pos: '50% 40%'},
+  {src: 'gen_field.jpg', pos: '50% 82%'},
 ];
 const N = IMAGES.length;
 export const QUANTUM_DURATION = 900; // 30秒 @30fps
@@ -56,7 +57,7 @@ const ImageLayer: React.FC<{index: number; filter?: string}> = ({index, filter})
   );
 };
 
-export const QuantumMorph: React.FC = () => {
+export const QuantumMorph: React.FC<{withAudio?: boolean}> = ({withAudio = true}) => {
   const f = useCurrentFrame();
   const b = Math.min(N - 1, Math.floor(f / S));
   const inTransition = b < N - 1 && f >= (b + 1) * S - D;
@@ -67,7 +68,7 @@ export const QuantumMorph: React.FC = () => {
 
   return (
     <AbsoluteFill style={{background: '#02000a'}}>
-      <Audio src={staticFile('storyboard.mp4')} volume={0.85} loop />
+      {withAudio ? <Audio src={staticFile('storyboard.mp4')} volume={0.85} loop /> : null}
       <svg width={0} height={0} style={{position: 'absolute'}}>
         {/* 量子配色: 明るさをバルマー系列のグラデーションに置き換えて元の色と混ぜる */}
         <filter id="quantum" colorInterpolationFilters="sRGB" x="0" y="0" width="100%" height="100%">
