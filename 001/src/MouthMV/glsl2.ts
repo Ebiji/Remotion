@@ -18,7 +18,7 @@ void main(){
   // 花は拍で脈動
   if (aMeta.w > 1.5 && aMeta.w < 2.5) { vec3 c0 = aStart; p = c0 + (p - c0)*(1.0 + 0.45*uKick + 0.12*uBeat + 0.25*uSnare); }
   float mode = aWall.x;
-  float s = (0.8 + 0.9*rnd) * (0.8 + 0.5*aInst.z/12.0) * (mode < 0.5 ? 1.25 : (mode < 1.5 ? 0.8 : 1.1));
+  float s = (0.8 + 0.9*rnd) * (0.8 + 0.5*aInst.z/12.0) * (mode < 0.5 ? 1.2 : (mode < 1.5 ? 0.65 : 0.9));
   // 風のうねり
   float ph = uTime*1.6 + aInst2.x*6.28 + p.y*0.45;
   p.x += sin(ph)*p.y*0.045*(1.0+uBass*1.5);
@@ -54,14 +54,14 @@ void main(){
   vec3 base = rainbow(hue);
   float ndl = 0.5+0.5*dot(N, normalize(vec3(0.35,0.85,0.4)));
   float rim = pow(1.0-max(dot(N,V),0.0), 2.2);
-  vec3 col = base*(0.14 + 0.6*ndl);
+  vec3 col = base*(0.12 + 0.55*ndl);
   col += rainbow(hue+0.12)*pow(rim,3.0)*(0.3+0.2*uInten);
   if (kind > 0.5 && kind < 1.5) {          // 葉: 葉脈
     float vein = smoothstep(0.08,0.0,abs(vUV.x-0.5)-0.01) + smoothstep(0.06,0.0,abs(fract(vUV.y*7.0+abs(vUV.x-0.5)*3.0)-0.5)-0.43)*0.5;
     col += rainbow(hue+0.5)*vein*0.45*(0.5+uInten);
   } else if (kind > 1.5) {                 // 花弁: 根元は温かく先端は虹、縁に光の粒
     float tip = vUV.y;
-    col = rainbow(hue + tip*0.35)*(0.22+0.75*ndl) + rainbow(hue+tip*0.35+0.12)*rim*0.35;
+    col = rainbow(hue + tip*0.35)*(0.2+0.78*ndl) + rainbow(hue+tip*0.35+0.12)*rim*0.35;
     col += vec3(1.0,0.5,0.2)*pow(1.0-tip,5.0)*0.18;
     float dots = smoothstep(0.13,0.0,length(vec2(vUV.x-0.5, fract(tip*5.0)-0.5)*vec2(1.6,0.9)));
     col += rainbow(hue+0.2)*dots*0.2;
@@ -71,7 +71,7 @@ void main(){
     col += rainbow(hue+0.2)*flow*0.07*(0.3+uInten);
   }
   float fg = 1.0-exp(-dist*0.0046);
-  vec3 fogC = rainbow(uHue+0.55+dist*0.0006)*(0.09+0.11*uInten) + vec3(0.02,0.0,0.06);
+  vec3 fogC = rainbow(uHue+0.55+dist*0.0006)*(0.08+0.10*uInten) + vec3(0.015,0.0,0.055);
   col = mix(col, fogC, fg);
   gl_FragColor = vec4(min(col, vec3(1.7)), 1.0);
 }`;
@@ -208,12 +208,15 @@ void main(){
   col = mix(col, blur*0.25, clamp(0.45*(uKick+uSnare*0.5),0.0,0.5));
   col += uFlash*rainbow(uHue+rr)*0.35;
   // トーンマップ + 彩度
-  col = 1.0 - exp(-col*1.1);
+  col = 1.0 - exp(-col*1.25);
   float l = dot(col, vec3(0.299,0.587,0.114));
-  col = mix(vec3(l), col, 1.4);
+  col = mix(vec3(l), col, 1.35);
+  // 青みのカラーグレード: 影は青く、緑の出すぎを抑え、ハイライトは素直に
+  float sh = 1.0 - smoothstep(0.0, 0.6, l);
+  col = col*vec3(0.95, 0.88, 1.08) + vec3(0.0, 0.012, 0.07)*sh;
   col = pow(col, vec3(0.92));
   // ビネット + グレイン
-  col *= smoothstep(1.4, 0.4, rr*1.2);
+  col *= smoothstep(1.25, 0.32, rr*1.2);
   col += (h21(uv*uRes + uTime) - 0.5)*uGrain;
   gl_FragColor = vec4(col, 1.0);
 }`;
