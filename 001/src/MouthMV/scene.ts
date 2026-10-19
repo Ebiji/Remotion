@@ -5,8 +5,9 @@ import {UnrealBloomPass} from 'three/examples/jsm/postprocessing/UnrealBloomPass
 import {ShaderPass} from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import * as A from './audio';
 import {BUILDING_VERT, BUILDING_FRAG, GROUND_VERT, GROUND_FRAG, SKY_VERT, SKY_FRAG} from './glsl';
-import {PLANT_VERT, PLANT_FRAG, HERO_VERT, HERO_FRAG, SUN_VERT, SUN_FRAG, PART_VERT, PART_FRAG, POST_FRAG} from './glsl2';
+import {LAMP_VERT, LAMP_FRAG, RIBBON_VERT, RIBBON_FRAG, PLANT_VERT, PLANT_FRAG, HERO_VERT, HERO_FRAG, SUN_VERT, SUN_FRAG, PART_VERT, PART_FRAG, POST_FRAG} from './glsl2';
 import {buildSpecies, mulberry} from './plants';
+import {mergeGeometries} from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 const HERO_POS = new THREE.Vector3(0, 215, -560);
 
@@ -47,6 +48,7 @@ export class MVScene {
   sun: THREE.Mesh;
   heroGroup = new THREE.Group();
   spec: number[] = new Array(16).fill(0);
+  plantLods: {items: {a: number[]; b: number[]; w: number[]}[]; g: THREE.InstancedBufferGeometry; aInst: THREE.InstancedBufferAttribute; aInst2: THREE.InstancedBufferAttribute; aWall: THREE.InstancedBufferAttribute; lo: number; hi: number}[] = [];
   W: number; H: number; timing = false;
 
   constructor(canvas: HTMLCanvasElement, W: number, H: number, hide = '') {
@@ -59,7 +61,7 @@ export class MVScene {
     this.U = {
       uTime: {value: 0}, uTravel: {value: 0}, uLen: {value: A.LEN}, uKick: {value: 0}, uSnare: {value: 0}, uHat: {value: 0},
       uBass: {value: 0}, uMid: {value: 0}, uInten: {value: 0}, uHue: {value: 0}, uBeat: {value: 0}, uKickAge: {value: 99},
-      uBeatPos: {value: 0}, uKickIdx: {value: 0}, uBend: {value: 0}, uSpec: {value: this.spec}, uPlant: {value: 0},
+      uBeatPos: {value: 0}, uKickIdx: {value: 0}, uBend: {value: 0}, uVox: {value: 0}, uVoxOn: {value: 0}, uPitch: {value: 0}, uSpec: {value: this.spec}, uPlant: {value: 0},
     };
     const U = this.U;
     const mk = (vs: string, fs: string, extra: any = {}, params: THREE.ShaderMaterialParameters = {}) =>
@@ -92,7 +94,14 @@ export class MVScene {
       const band = Math.min(15, Math.floor(l * 3 + R() * 3));
       insts.push({a: [x, s * pitch + (R() - 0.5) * 2, w, hmax], b: [R(), d, band, l], sp: Math.floor(R() * 4), w: [0, 0, 0, side]});
     }
-    const box = new THREE.BoxGeometry(1, 1, 1); box.translate(0, 0.5, 0);
+    // 塔の形: 段(セットバック)と尖塔を1つのメッシュに (aTier で段を識別)
+    const tiers: [number, number][] = [[0, 0.64], [0.64, 0.86], [0.86, 1.0], [1.0, 1.1]];
+    const tg = tiers.map(([y0, y1], i) => {
+      const g = new THREE.BoxGeometry(1, y1 - y0, 1); g.translate(0, (y0 + y1) / 2, 0);
+      g.setAttribute('aTier', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count).fill(i), 1));
+      return g;
+    });
+    const box = mergeGeometries(tg)!;
     const makeInstanced = (base: THREE.BufferGeometry, items: Inst[]) => {
       const g = new THREE.InstancedBufferGeometry();
       g.index = base.index;
@@ -103,26 +112,76 @@ export class MVScene {
       g.instanceCount = items.length;
       return g;
     };
-    // 植物の配置: 屋上 / 壁面から張り出し / 歩道の街路樹
+    // 植物の配置: 屋上 / 壁面から張り出し / 壁面を垂れる蔓 / 歩道の街路樹
+    const pickSp = (r: number, tbl: [number, number][]) => { let c = 0; for (const [k, w] of tbl) { c += w; if (r < c) return k; } return tbl[tbl.length - 1][0]; };
+    const ROOF: [number, number][] = [[0, 0.3], [1, 0.15], [2, 0.2], [3, 0.15], [4, 0.1], [5, 0.1]];
+    const WALLP: [number, number][] = [[3, 0.35], [4, 0.3], [2, 0.35]];
+    const GROUND: [number, number][] = [[0, 0.5], [2, 0.25], [5, 0.25]];
     const plants: Inst[] = [];
     for (const b of insts) {
-      if (R() < 0.55) plants.push({...b, sp: Math.floor(R() * 4), w: [0, 0, 0, b.w[3]]});
-      if (b.b[3] <= 1 && R() < (b.b[3] === 0 ? 0.75 : 0.45)) {
-        for (let k = 0; k < 1; k++) plants.push({a: b.a, b: [R(), b.b[1], b.b[2], b.b[3]], sp: Math.floor(R() * 4), w: [1, 0.12 + R() * 0.6, (R() - 0.5) * 0.8, b.w[3]]});
+      if (R() < 0.7) plants.push({...b, sp: pickSp(R(), ROOF), w: [0, 0, 0, b.w[3]]});
+      if (b.b[3] <= 1) {
+        if (R() < (b.b[3] === 0 ? 0.8 : 0.5)) plants.push({a: b.a, b: [R(), b.b[1], b.b[2], b.b[3]], sp: pickSp(R(), WALLP), w: [1, 0.12 + R() * 0.6, (R() - 0.5) * 0.8, b.w[3]]});
+        const nv = R() < 0.95 ? (R() < 0.5 ? 2 : 1) : 0;
+        for (let k = 0; k < nv; k++) plants.push({a: b.a, b: [R(), b.b[1], b.b[2], b.b[3]], sp: 6, w: [3, 0.5 + R() * 0.45, (R() - 0.5) * 0.8, b.w[3]]});
       }
     }
     for (const side of [-1, 1]) for (let s = 0; s < SLOTS; s++) {
-      plants.push({a: [side * (STREET - 4 + (R() - 0.5) * 2), s * pitch + 4 + R() * 4, 6, 0], b: [R(), 6, 0, 0], sp: Math.floor(R() * 4), w: [2, 0, 0, side]});
+      plants.push({a: [side * (STREET - 4 + (R() - 0.5) * 2), s * pitch + 4 + R() * 4, 6, 0], b: [R(), 6, 0, 0], sp: pickSp(R(), GROUND), w: [2, 0, 0, side]});
     }
     const bm = mk(BUILDING_VERT, BUILDING_FRAG);
     const bmesh = new THREE.Mesh(makeInstanced(box, insts), bm); bmesh.frustumCulled = false;
     this.scene.add(bmesh);
-    const pm = mk(PLANT_VERT, PLANT_FRAG, {}, {side: THREE.DoubleSide});
-    for (let k = 0; k < 4; k++) {
+    // 細かさ3段階(近景/中景/遠景)。担当距離の外は頂点シェーダで即座に捨てる
+    const BANDS: [number, number, number, number][] = [[12, 82, 0.001, 22], [60, 185, 22, 25], [160, 4000, 25, 0.001]];
+    const pms = BANDS.map((bd) => mk(PLANT_VERT, PLANT_FRAG, {uBand: {value: new THREE.Vector4(...bd)}}, {side: THREE.DoubleSide}));
+    for (let k = 0; k < 7; k++) {
       const items = plants.filter((i) => i.sp === k);
-      const pg = makeInstanced(buildSpecies(k, 77 + k * 31), items);
-      const m = new THREE.Mesh(pg, pm); m.frustumCulled = false;
-      this.scene.add(m);
+      if (!items.length) continue;
+      for (let q = 0; q < 3; q++) {
+        const g = new THREE.InstancedBufferGeometry();
+        const base = buildSpecies(k, 77 + k * 31, q);
+        g.index = base.index;
+        for (const key of Object.keys(base.attributes)) g.setAttribute(key, base.attributes[key]);
+        const mk4 = () => { const a = new THREE.InstancedBufferAttribute(new Float32Array(items.length * 4), 4); a.setUsage(THREE.DynamicDrawUsage); return a; };
+        const aInst = mk4(), aInst2 = mk4(), aWall = mk4();
+        g.setAttribute('aInst', aInst); g.setAttribute('aInst2', aInst2); g.setAttribute('aWall', aWall);
+        g.instanceCount = 0;
+        const m = new THREE.Mesh(g, pms[q]); m.frustumCulled = false;
+        this.scene.add(m);
+        this.plantLods.push({items, g, aInst, aInst2, aWall, lo: BANDS[q][0], hi: BANDS[q][1]});
+      }
+    }
+
+    // ---- 街灯 (拍で瞬く) ----
+    {
+      const pole = new THREE.CylinderGeometry(0.1, 0.17, 7, 6); pole.translate(0, 3.5, 0);
+      const arm = new THREE.BoxGeometry(2.4, 0.12, 0.12); arm.translate(-1.2, 7, 0);
+      const head = new THREE.SphereGeometry(0.5, 10, 8); head.translate(-2.4, 6.8, 0);
+      const parts = [pole, arm, head].map((g, i) => {
+        g.deleteAttribute('uv');
+        g.setAttribute('aPart', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count).fill(i === 2 ? 1 : 0), 1));
+        return g.index ? g.toNonIndexed() : g;
+      });
+      const lg = mergeGeometries(parts)!;
+      const lamps: number[] = [];
+      for (const side of [-1, 1]) for (let s = 0; s < SLOTS; s++) lamps.push(side, s * pitch + 8, 1 + R() * 0.2, R());
+      const ig = new THREE.InstancedBufferGeometry();
+      for (const k of Object.keys(lg.attributes)) ig.setAttribute(k, lg.attributes[k]);
+      ig.setAttribute('aLamp', new THREE.InstancedBufferAttribute(new Float32Array(lamps), 4));
+      ig.instanceCount = lamps.length / 4;
+      const lm = new THREE.Mesh(ig, mk(LAMP_VERT, LAMP_FRAG)); lm.frustumCulled = false;
+      this.scene.add(lm);
+    }
+
+    // ---- 旋律線: 道に沿って流れる声のピッチ ----
+    {
+      const tex = new THREE.DataTexture(A.melodyTex, A.MELODY_W, 1, THREE.RGFormat, THREE.FloatType);
+      tex.minFilter = tex.magFilter = THREE.NearestFilter; tex.needsUpdate = true;
+      const rg = new THREE.PlaneGeometry(1, 1, 2, 200);
+      const rm = mk(RIBBON_VERT, RIBBON_FRAG, {uMelody: {value: tex}, uMelodyW: {value: A.MELODY_W}}, {transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide});
+      const ribbon = new THREE.Mesh(rg, rm); ribbon.frustumCulled = false;
+      this.scene.add(ribbon);
     }
 
     // ---- 巨大曼荼羅花 ----
@@ -151,7 +210,7 @@ export class MVScene {
     this.heroGroup.add(this.sun);
 
     // ---- 花粉 / 胞子 ----
-    const NP = 6500;
+    const NP = 14000;
     const seeds = new Float32Array(NP * 4); const rp = mulberry(5);
     for (let i = 0; i < seeds.length; i++) seeds[i] = rp();
     const pg = new THREE.BufferGeometry();
@@ -192,6 +251,20 @@ export class MVScene {
     U.uTime.value = t; U.uTravel.value = A.travel[f]; U.uKick.value = kick; U.uSnare.value = snare; U.uHat.value = hat;
     U.uBass.value = bass; U.uMid.value = A.mid[f]; U.uInten.value = inten; U.uHue.value = hue;
     U.uBeat.value = Math.exp(-bf * 4); U.uKickAge.value = A.kickAge[f]; U.uBeatPos.value = bp;
+    // 各細かさの担当距離にいる個体だけを毎フレーム集めて描く
+    const tr = A.travel[f];
+    for (const L of this.plantLods) {
+      let n = 0;
+      for (const it of L.items) {
+        const zz = (((it.a[1] - tr) % A.LEN) + A.LEN) % A.LEN;
+        if (zz < L.lo || zz >= L.hi) continue;
+        L.aInst.array.set(it.a, n * 4); L.aInst2.array.set(it.b, n * 4); L.aWall.array.set(it.w, n * 4);
+        n++;
+      }
+      L.g.instanceCount = n;
+      L.aInst.needsUpdate = L.aInst2.needsUpdate = L.aWall.needsUpdate = true;
+    }
+    U.uVox.value = A.vox[f]; U.uVoxOn.value = A.voxOn[f]; U.uPitch.value = A.pitch[f];
     A.specAt(f, this.spec);
     // 植物は序盤は芽 → 中盤で茂り → サビで満開、ブレイクで一旦しぼむ
     U.uPlant.value = Math.min(1.25, 0.28 + sstep(2, 40, t) * 0.55 + inten * 0.5 + sstep(70, 80, t) * 0.15);
@@ -233,8 +306,9 @@ export class MVScene {
     this.ground.uniforms.uCamPos.value.set(pos.x, 0, 0);
 
     // ポスト
-    const barPhase = ((bp / 4) % 1 + 1) % 1;
-    const kalOn = sstep(0.5, 0.62, inten) * ((bar % 4 === 3) ? Math.pow(Math.sin(Math.PI * barPhase), 2) : 0); // 小節全体でゆっくり出入り
+    // 万華鏡の曼荼羅は2小節(8拍)ぶん続く: 16拍の後半の8拍、ゆっくり出入り
+    const ph8 = ((bp / 8) % 1 + 1) % 1;
+    const kalOn = (inten > 0.5 ? 1 : 0) * (Math.floor(bp / 8) % 2 === 1 ? sstep(0, 0.2, ph8) * sstep(1, 0.8, ph8) : 0);
     const dropHit = 0.6 * A.dropFlash[f];
     const P = this.post.uniforms;
     P.uKal.value = kalOn; P.uFlash.value = Math.max(0.08 * snare * inten, dropHit * 0.4);

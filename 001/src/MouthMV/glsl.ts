@@ -1,6 +1,6 @@
 /** 共有GLSL: ユニフォーム・ノイズ・虹パレット・ビルの挙動(ビルと植物で同一計算) */
 export const COMMON = /* glsl */ `
-uniform float uTime, uTravel, uLen, uKick, uSnare, uHat, uBass, uMid, uInten, uHue, uBeat, uKickAge, uBeatPos, uKickIdx, uBend;
+uniform float uTime, uTravel, uLen, uKick, uSnare, uHat, uBass, uMid, uInten, uHue, uBeat, uKickAge, uBeatPos, uKickIdx, uBend, uVox, uVoxOn, uPitch;
 uniform float uSpec[16];
 float h11(float p){p=fract(p*.1031);p*=p+33.33;p*=p+p;return fract(p);}
 float h21(vec2 p){vec3 p3=fract(vec3(p.xyx)*.1031);p3+=dot(p3,p3.yzx+33.33);return fract((p3.x+p3.y)*p3.z);}
@@ -41,12 +41,16 @@ Bd bldg(){
 export const BUILDING_VERT = /* glsl */ `
 ${COMMON}
 ${BLDG_VERT}
+attribute float aTier;
 varying vec3 vW; varying vec3 vN; varying vec3 vP; varying vec4 vI; varying vec2 vS;
 void main(){
   Bd b = bldg();
   vec3 p = position;
-  vec3 w = vec3(b.base.x + p.x*aInst.z, p.y*b.h, b.base.z + p.z*aInst2.y);
-  vW = w; vN = normal; vP = position; vI = vec4(aInst2.x, b.zz, b.sp, b.h); vS = vec2(aInst.z, aInst2.y);
+  // 塔の段(セットバック)と尖塔: 建物ごとに形が変わる
+  float flag = step(0.5, h11(aInst2.x*5.3)), flag2 = step(0.55, h11(aInst2.x*8.1));
+  float sc = aTier < 0.5 ? 1.0 : (aTier < 1.5 ? mix(1.0, 0.78, flag) : (aTier < 2.5 ? mix(1.0, 0.54, flag) : 0.07*flag2));
+  vec3 w = vec3(b.base.x + p.x*aInst.z*sc, p.y*b.h, b.base.z + p.z*aInst2.y*sc);
+  vW = w; vN = normal; vP = position; vI = vec4(aInst2.x, b.zz, b.sp, b.h); vS = vec2(aInst.z*sc, aInst2.y*sc);
   gl_Position = projectionMatrix*viewMatrix*vec4(w,1.0);
 }`;
 
@@ -80,8 +84,22 @@ void main(){
     vec2 f = fract(vec2(u/cs.x + id*3.0, v/cs.y));
     float car = carpet(cell);
     float r = h21(cell + id*7.13);
-    // 窓
-    float win = smoothstep(0.14,0.2,f.x)*smoothstep(0.86,0.8,f.x)*smoothstep(0.16,0.22,f.y)*smoothstep(0.84,0.78,f.y);
+    // 構造: 窓枠・桟・敷居・床スラブ・柱・汚れ
+    float outer = smoothstep(0.10,0.15,f.x)*smoothstep(0.90,0.85,f.x)*smoothstep(0.12,0.17,f.y)*smoothstep(0.88,0.83,f.y);
+    float winI = smoothstep(0.18,0.23,f.x)*smoothstep(0.82,0.77,f.x)*smoothstep(0.20,0.25,f.y)*smoothstep(0.80,0.75,f.y);
+    float frameM = clamp(outer - winI, 0.0, 1.0);
+    float mull = (smoothstep(0.035,0.0,abs(f.x-0.5)-0.012) + step(0.62,h21(cell+id*3.7))*smoothstep(0.03,0.0,abs(f.y-0.52)-0.012))*winI;
+    float win = winI*(1.0-0.85*mull);
+    float sill = smoothstep(0.05,0.0,abs(f.y-0.11)-0.02);
+    float slab = smoothstep(0.07,0.0,f.y);
+    float pil = step(mod(cell.x,4.0),0.5);
+    float grime = 0.7 + 0.3*h21(floor(vec2(u,v)*3.0)+id);
+    float ao = 0.5 + 0.5*smoothstep(0.0, 6.0, v);
+    col += hueC*0.09*pil*grime*ao;
+    col += rainbow(id*0.3+uHue+0.2)*frameM*0.26*ao*smoothstep(240.0,30.0,dist);
+    col += vec3(0.5,0.6,0.95)*sill*0.14*ao*smoothstep(160.0,20.0,dist);
+    col *= 1.0 - 0.45*slab;
+    col *= 0.85 + 0.15*grime;
     float wave = 0.5+0.5*sin(cell.y*0.42 - uTime*2.4 + id*2.0 + cell.x*0.7);
     float lit = step(0.40 - 0.22*uInten, r*0.9 + wave*0.35 - 0.1);
     vec3 wc = rainbow(id*0.37 + cell.y*0.03 + r*0.12 + uHue);
@@ -127,7 +145,7 @@ void main(){
   float z = vW.z + uTravel;                 // 流れる座標
   float zg = max(34.0 - vW.z, 0.0);
   float x = vW.x - roadX(zg);
-  vec3 col = vec3(0.02,0.014,0.055);
+  vec3 col = vec3(0.02,0.014,0.055)*(0.8+0.4*h21(floor(vec2(x*4.0, z*4.0))));
   // 道路 (ストリート幅14)
   float road = smoothstep(15.0,14.0,abs(x));
   // レーン線(虹) + 横断バー
@@ -135,6 +153,12 @@ void main(){
   float bars = smoothstep(0.04,0.0,abs(fract(z/12.0)-0.5)-0.46);
   vec3 lc = rainbow(z*0.004 + uHue + abs(x)*0.02);
   col += lc*(lane*0.9 + bars*0.4)*(0.55+0.8*uInten)*road + lc*road*0.04;
+  // 縁石・歩道タイル
+  float curb = smoothstep(0.28,0.0,abs(abs(x)-15.3)-0.18);
+  col += rainbow(uHue+z*0.003+0.2)*curb*(0.5+0.7*uInten);
+  float walk = step(15.5,abs(x))*step(abs(x),26.0);
+  float tile = smoothstep(0.04,0.0,abs(fract(x/2.0)-0.5)-0.46)+smoothstep(0.04,0.0,abs(fract(z/2.0)-0.5)-0.46);
+  col += rainbow(uHue+0.1)*walk*tile*0.06*(0.4+uInten);
   // 全域のネオングリッド
   float gx = smoothstep(0.05,0.0,abs(fract(x/10.0)-0.5)-0.46);
   float gz = smoothstep(0.05,0.0,abs(fract(z/10.0)-0.5)-0.46);
@@ -181,16 +205,16 @@ vec4 paisleyLayer(vec3 d, float scale, float speed, float seed){
   vec2 uvp = d.xz/(d.y + 0.28)*scale + vec2(uTime*speed, uTime*speed*0.35);
   vec2 id = floor(uvp); vec2 f = fract(uvp)*2.0 - 1.0;
   float r1 = h21(id + seed), r2 = h21(id*1.7 + seed + 9.0);
-  if (r1 < 0.3) return vec4(0.0);
+  if (r1 < 0.3 - 0.22*uVox) return vec4(0.0);          // 声が出ると雲(ペイズリー)が増える
   float a = r2*6.2832 + uTime*0.15*(r1-0.5);
-  vec2 q = rot(a)*f*1.25;
-  q += 0.12*(0.3+uBass+uMid*0.6)*vec2(sin(q.y*4.0 + uTime*2.2), cos(q.x*4.0 + uTime*1.9)); // 音で歪む
+  vec2 q = rot(a)*f*1.25/(1.0 + 0.3*uVoxOn);
+  q += 0.12*(0.3+uBass+uMid*0.6+0.9*uVoxOn)*vec2(sin(q.y*4.0 + uTime*2.2), cos(q.x*4.0 + uTime*1.9)); // 音で歪む
   q.x += 0.45*(q.y*q.y - 0.25)*(r2 > 0.5 ? 1.0 : -1.0);                                     // 先端が巻く
   float dd = sdTear(q);
   float body = smoothstep(0.03, -0.03, dd);
   float ring = smoothstep(0.035, 0.0, abs(dd + 0.14) - 0.012) + smoothstep(0.03, 0.0, abs(dd + 0.32) - 0.01)*0.8;
   float dots = smoothstep(0.1, 0.07, length(fract(q*5.0) - 0.5))*smoothstep(-0.2, -0.4, dd)*step(dd, -0.4)*0.0 + smoothstep(0.16, 0.12, length(fract(q*4.0 + 0.5) - 0.5))*step(dd, -0.45)*step(-0.9, dd);
-  float hue = uHue + r1*0.6 + dd*0.7 + id.x*0.07;
+  float hue = uHue + r1*0.6 + dd*0.7 + id.x*0.07 + uPitch*0.3*uVox;
   vec3 c = rainbow(hue)*(0.35 + 0.5*body) + rainbow(hue + 0.33)*ring*0.9 + rainbow(hue+0.6)*dots*0.7;
   float fade = smoothstep(0.02, 0.22, d.y)*smoothstep(1.0, 0.45, d.y);
   return vec4(c*body*fade, body*fade*0.85);
@@ -236,7 +260,7 @@ void main(){
   // ペイズリーの雲 (2層のパララックス)
   for (int i=0;i<2;i++){
     vec4 pc = paisleyLayer(d, i==0 ? 1.05 : 1.9, i==0 ? 0.03 : 0.055, float(i)*31.0);
-    col = mix(col, pc.rgb*(0.75+0.35*uInten+0.3*uKick), pc.a);
+    col = mix(col, pc.rgb*(0.75+0.35*uInten+0.3*uKick+0.5*uVoxOn), pc.a);
   }
   // 星
   vec3 sd = floor(d*230.0); float sr = h21(sd.xy+sd.z*17.0);

@@ -6,6 +6,7 @@ export const FRAMES = raw.frames;
 export const LEN = 320; // 都市ループ長 (world units)
 
 const N = FRAMES + 2;
+const rawAny = raw as any;
 
 /** onset列 -> 指数減衰パルス (アタック瞬時、tauフレームで減衰) */
 const pulse = (onsets: number[], amps: number[] | null, tau: number, lead = 0) => {
@@ -57,6 +58,11 @@ export const specAt = (f: number, out: number[]) => {
   for (let b = 0; b < 16; b++) out[b] = specSm[b][i];
   return out;
 };
+
+/** 女性スキャット(声域の旋律線): 存在感・音の出だし・ピッチ (scripts/analyze_voice.py) */
+export const vox = smooth(rawAny.vox ?? [], 0.7, 0.12);
+export const voxOn = pulse(rawAny.voxOn ?? [], null, 9, 1);
+export const pitch = smooth(rawAny.pitch ?? [], 0.5, 0.5);
 
 /** 山場(静→動)の頭: ラウドネスが急に立ち上がったフレーム。曲ごとに自動検出 */
 export const dropFlash = (() => {
@@ -111,4 +117,18 @@ export const kickIdx = (() => {
   let c = 0;
   for (let f = 0; f < N; f++) { if (set.has(f)) c++; o[f] = c; }
   return o;
+})();
+
+/** 道に沿って流れる旋律線用: 走行距離(1単位=1サンプル)ごとのピッチと声の強さ */
+export const MELODY_W = Math.ceil(travel[N - 1] / 2) + 1024; // 2単位=1サンプル (テクスチャ幅の上限8192以内)
+export const melodyTex = (() => {
+  const d = new Float32Array(MELODY_W * 2);
+  let f = 0;
+  for (let i = 0; i < MELODY_W; i++) {
+    const dist = i * 2;
+    while (f < N - 2 && travel[f + 1] < dist) f++;
+    d[i * 2] = pitch[Math.min(f, N - 1)];
+    d[i * 2 + 1] = vox[Math.min(f, N - 1)];
+  }
+  return d;
 })();
