@@ -6,11 +6,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 const chunk = +(process.argv[2] || 300);
 const outDir = path.resolve(process.argv[3] || 'out/mouth');
+const W = +(process.argv[4] || 0), H = +(process.argv[5] || 0); // 解像度の指定 (例: 1920 1080)
 fs.mkdirSync(outDir, {recursive: true});
 const serveUrl = await bundle({entryPoint: path.resolve('src/index.ts'), onProgress: () => {}});
 const chromiumOptions = {gl: 'swangle'};
 const inputProps = {withAudio: false};
-const comp = await selectComposition({serveUrl, id: 'MouthMV', inputProps, chromiumOptions});
+const comp0 = await selectComposition({serveUrl, id: 'MouthMV', inputProps, chromiumOptions});
+const comp = W && H ? {...comp0, width: W, height: H} : comp0;
 const browser = await openBrowser('chrome', {chromiumOptions, forceDeviceScaleFactor: 1});
 const total = comp.durationInFrames;
 for (let a = 0, i = 0; a < total; a += chunk, i++) {
