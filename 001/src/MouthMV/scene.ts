@@ -197,7 +197,7 @@ export class MVScene {
     U.uPlant.value = Math.min(1.25, 0.28 + sstep(2, 40, t) * 0.55 + inten * 0.5 + sstep(70, 80, t) * 0.15);
 
     // カメラ
-    const cy = curve(CAM_Y, t) + kick * 0.2;
+    const cy = 4 + 6 * inten + kick * 0.2; // 高さは曲の盛り上がりに追従
     const low = 1 - sstep(10, 22, cy);
     const cx = (Math.sin(t * 0.21) * 4 + Math.sin(t * 0.07 + 1) * 3) * (0.5 + 0.5 * low + 0.6 * (1 - low)) + Math.sin(t * 0.9) * 0.4 * bass;
     // 曲がりくねる道に沿って進む: 視線は先のカーブを向き、体をバンクさせる
@@ -235,7 +235,7 @@ export class MVScene {
     // ポスト
     const barPhase = ((bp / 4) % 1 + 1) % 1;
     const kalOn = sstep(0.5, 0.62, inten) * ((bar % 4 === 3) ? Math.pow(Math.sin(Math.PI * barPhase), 2) : 0); // 小節全体でゆっくり出入り
-    const dropHit = t >= 72 && t < 72.4 ? 0.6 * (1 - (t - 72) / 0.4) : t >= 100 && t < 100.35 ? 0.6 * (1 - (t - 100) / 0.35) : 0;
+    const dropHit = 0.6 * A.dropFlash[f];
     const P = this.post.uniforms;
     P.uKal.value = kalOn; P.uFlash.value = Math.max(0.08 * snare * inten, dropHit * 0.4);
     P.uZoom.value = 0.012 * kick * (0.35 + inten) + 0.005 * snare;

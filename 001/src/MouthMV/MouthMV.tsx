@@ -5,7 +5,7 @@ import {FRAMES} from './audio';
 
 export const MOUTH_DURATION = FRAMES;
 
-export const MouthMV: React.FC<{withAudio?: boolean; hide?: string}> = ({withAudio = true, hide = ''}) => {
+export const MouthMV: React.FC<{withAudio?: boolean; hide?: string; audioFile?: string}> = ({withAudio = true, hide = '', audioFile = 'mouth2_mastered.mp3'}) => {
   const frame = useCurrentFrame();
   const {width, height, fps} = useVideoConfig();
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -24,7 +24,7 @@ export const MouthMV: React.FC<{withAudio?: boolean; hide?: string}> = ({withAud
     <AbsoluteFill style={{background: '#000'}}>
       <canvas ref={canvasRef} width={width} height={height} style={{width, height, display: 'block'}} />
       <AbsoluteFill style={{background: '#000', opacity: Math.max(fadeIn, fadeOut)}} />
-      {withAudio ? <Audio src={staticFile('mouth1_mastered.mp3')} /> : null}
+      {withAudio ? <Audio src={staticFile(audioFile)} /> : null}
     </AbsoluteFill>
   );
 };

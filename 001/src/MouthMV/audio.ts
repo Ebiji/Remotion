@@ -58,6 +58,19 @@ export const specAt = (f: number, out: number[]) => {
   return out;
 };
 
+/** 山場(静→動)の頭: ラウドネスが急に立ち上がったフレーム。曲ごとに自動検出 */
+export const dropFlash = (() => {
+  const o = new Float32Array(N);
+  let last = -999;
+  for (let f = 60; f < N; f++) {
+    if (loud[f] - loud[f - 60] > 0.16 && loud[f] > 0.45 && f - last > 300) {
+      last = f;
+      for (let k = 0; k < 12 && f + k < N; k++) o[f + k] = 1 - k / 12;
+    }
+  }
+  return o;
+})();
+
 /** 拍グリッド */
 export const beat0 = raw.beats[0];
 export const beatPeriod = raw.beat_period;

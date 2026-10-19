@@ -10,7 +10,9 @@
     "render:chain": "remotion render src/index.ts MorphChain out/morph-chain.mp4",
     "render:morph": "remotion render src/index.ts SingleImageMorph out/single-image-morph.mp4",
     "render:mouth": "node scripts/render_chunks.mjs",
-    "analyze:mouth": "python3 scripts/analyze_audio.py"
+    "analyze:mouth": "python3 scripts/analyze_audio.py",
+    "song:mouth1": "cp src/MouthMV/analysis.mouth1.json src/MouthMV/analysis.json",
+    "song:mouth2": "cp src/MouthMV/analysis.mouth2.json src/MouthMV/analysis.json"
   },
   "dependencies": {
     "@remotion/cli": "4.0.250",
