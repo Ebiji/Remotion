@@ -68,7 +68,7 @@ export const travel = (() => {
   const o = new Float32Array(N);
   let d = 0;
   for (let f = 0; f < N; f++) {
-    const speed = 0.55 + 2.2 * inten[f] + 0.9 * bass[f] + 1.3 * kick[f];
+    const speed = 0.5 * (0.55 + 2.2 * inten[f] + 0.9 * bass[f] + 1.3 * kick[f]); // 進行速度は1/2
     d += speed;
     o[f] = d;
   }

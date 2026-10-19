@@ -197,7 +197,7 @@ export class MVScene {
     U.uPlant.value = Math.min(1.25, 0.28 + sstep(2, 40, t) * 0.55 + inten * 0.5 + sstep(70, 80, t) * 0.15);
 
     // カメラ
-    const cy = curve(CAM_Y, t) + kick * 0.9;
+    const cy = curve(CAM_Y, t) + kick * 0.6;
     const low = 1 - sstep(10, 22, cy);
     const cx = (Math.sin(t * 0.21) * 4 + Math.sin(t * 0.07 + 1) * 3) * (0.5 + 0.5 * low + 0.6 * (1 - low)) + Math.sin(t * 0.9) * 0.4 * bass;
     // 曲がりくねる道に沿って進む: 視線は先のカーブを向き、体をバンクさせる
@@ -213,9 +213,9 @@ export class MVScene {
     this.camera.up.set(0, 1, 0);
     this.camera.lookAt(pos.clone().addScaledVector(dir, 300));
     const rollDir = A.snareIdx[f] % 2 ? 1 : -1;
-    this.camera.rotateZ(roll + rollDir * 0.04 * snare * (0.4 + inten));
+    this.camera.rotateZ(roll + rollDir * 0.027 * snare * (0.4 + inten));
     const fovAdd = 0;
-    this.camera.fov = 58 + fovAdd + 13 * kick * (0.5 + inten) + 5 * snare;
+    this.camera.fov = 58 + fovAdd + 8.7 * kick * (0.5 + inten) + 3.3 * snare;
     this.camera.updateProjectionMatrix();
 
     // 巨大花
@@ -237,7 +237,7 @@ export class MVScene {
     const dropHit = t >= 72 && t < 72.4 ? 0.6 * (1 - (t - 72) / 0.4) : t >= 100 && t < 100.35 ? 0.6 * (1 - (t - 100) / 0.35) : 0;
     const P = this.post.uniforms;
     P.uKal.value = kalOn; P.uFlash.value = Math.max(0.2 * snare * inten, dropHit, 0.3 * cutPulse);
-    P.uZoom.value = 0.05 * kick * (0.35 + inten) + 0.02 * snare + 0.07 * cutPulse;
+    P.uZoom.value = 0.033 * kick * (0.35 + inten) + 0.013 * snare + 0.07 * cutPulse;
     this.bloom.strength = 0.36 + 0.3 * kick + 0.18 * inten;
     this.bloom.threshold = 0.8; this.bloom.radius = 0.75;
     const t0 = performance.now();

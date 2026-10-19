@@ -30,7 +30,8 @@ Bd bldg(){
   float wave = pow(0.5+0.5*cos(6.2832*(uBeatPos*0.5 - b.zz/150.0)), 4.0); // 拍ごとに手前へ走る波
   float eq = pow(clamp(b.sp, 0.0, 1.3), 1.3);
   float hop = uSnare*step(0.5, h11(aInst2.x*13.0));
-  float m = 0.16 + 0.28*uInten + 1.45*eq*(0.55+0.7*uInten) + 0.85*stomp + 0.6*wave*(0.25+uInten) + 0.5*hop;
+  float dyn = 1.45*eq*(0.55+0.7*uInten) + 0.85*stomp + 0.6*wave*(0.25+uInten) + 0.5*hop;
+  float m = 0.16 + 0.28*uInten + dyn*0.667;   // 縦揺れは2/3
   b.h = aInst.w*min(m, 2.2)*b.rise;
   b.base = vec3(aInst.x + roadX(zz), 0.0, 34.0 - zz);
   return b;
