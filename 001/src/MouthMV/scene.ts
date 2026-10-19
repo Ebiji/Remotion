@@ -197,7 +197,7 @@ export class MVScene {
     U.uPlant.value = Math.min(1.25, 0.28 + sstep(2, 40, t) * 0.55 + inten * 0.5 + sstep(70, 80, t) * 0.15);
 
     // カメラ
-    const cy = curve(CAM_Y, t) + kick * 0.6;
+    const cy = curve(CAM_Y, t) + kick * 0.2;
     const low = 1 - sstep(10, 22, cy);
     const cx = (Math.sin(t * 0.21) * 4 + Math.sin(t * 0.07 + 1) * 3) * (0.5 + 0.5 * low + 0.6 * (1 - low)) + Math.sin(t * 0.9) * 0.4 * bass;
     // 曲がりくねる道に沿って進む: 視線は先のカーブを向き、体をバンクさせる
@@ -206,16 +206,16 @@ export class MVScene {
     const lookYaw = Math.atan2(road(150) * 0.75, 150);
     const pos = new THREE.Vector3(Math.sin(t * 0.21) * 1.5, cy, 0);
     const pitch = 0.28;
-    const roll = -0.4 * lookYaw + 0.02 * Math.sin(t * 0.4);
+    const roll = -0.2 * lookYaw + 0.012 * Math.sin(t * 0.4);
     const cutPulse = 0;
     this.camera.position.copy(pos);
     const dir = new THREE.Vector3(Math.sin(lookYaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(lookYaw) * Math.cos(pitch));
     this.camera.up.set(0, 1, 0);
     this.camera.lookAt(pos.clone().addScaledVector(dir, 300));
     const rollDir = A.snareIdx[f] % 2 ? 1 : -1;
-    this.camera.rotateZ(roll + rollDir * 0.027 * snare * (0.4 + inten));
+    this.camera.rotateZ(roll + rollDir * 0.008 * snare * (0.4 + inten));
     const fovAdd = 0;
-    this.camera.fov = 58 + fovAdd + 8.7 * kick * (0.5 + inten) + 3.3 * snare;
+    this.camera.fov = 58 + fovAdd + 3.5 * kick * (0.5 + inten) + 1.2 * snare;
     this.camera.updateProjectionMatrix();
 
     // 巨大花
@@ -233,11 +233,12 @@ export class MVScene {
     this.ground.uniforms.uCamPos.value.set(pos.x, 0, 0);
 
     // ポスト
-    const kalOn = sstep(0.5, 0.62, inten) * ((bar % 4 === 3) ? 1 : 0) * sstep(0, 0.12, bf + (bar % 4 === 3 ? 0.12 : 0));
+    const barPhase = ((bp / 4) % 1 + 1) % 1;
+    const kalOn = sstep(0.5, 0.62, inten) * ((bar % 4 === 3) ? Math.pow(Math.sin(Math.PI * barPhase), 2) : 0); // 小節全体でゆっくり出入り
     const dropHit = t >= 72 && t < 72.4 ? 0.6 * (1 - (t - 72) / 0.4) : t >= 100 && t < 100.35 ? 0.6 * (1 - (t - 100) / 0.35) : 0;
     const P = this.post.uniforms;
-    P.uKal.value = kalOn; P.uFlash.value = Math.max(0.2 * snare * inten, dropHit, 0.3 * cutPulse);
-    P.uZoom.value = 0.033 * kick * (0.35 + inten) + 0.013 * snare + 0.07 * cutPulse;
+    P.uKal.value = kalOn; P.uFlash.value = Math.max(0.08 * snare * inten, dropHit * 0.4);
+    P.uZoom.value = 0.012 * kick * (0.35 + inten) + 0.005 * snare;
     this.bloom.strength = 0.36 + 0.3 * kick + 0.18 * inten;
     this.bloom.threshold = 0.8; this.bloom.radius = 0.75;
     const t0 = performance.now();

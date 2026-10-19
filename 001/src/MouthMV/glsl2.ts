@@ -197,15 +197,15 @@ void main(){
   uv = c + 0.5;
   uv = mix(uv, kal(uv, 6.0), uKal);
   vec2 dir = uv-0.5; float rr = length(dir);
-  float ab = 0.0015 + 0.011*uKick + 0.006*uSnare;
+  float ab = 0.0012 + 0.004*uKick + 0.002*uSnare;
   vec3 col;
   col.r = texture2D(tDiffuse, uv + dir*ab*1.6).r;
   col.g = texture2D(tDiffuse, uv).g;
   col.b = texture2D(tDiffuse, uv - dir*ab*1.6).b;
   // 放射ブラー(キック)
   vec3 blur = vec3(0.0);
-  for(int i=1;i<=4;i++){ blur += texture2D(tDiffuse, uv - dir*float(i)*0.012*(uKick+uSnare*0.5)).rgb; }
-  col = mix(col, blur*0.25, clamp(0.45*(uKick+uSnare*0.5),0.0,0.5));
+  for(int i=1;i<=4;i++){ blur += texture2D(tDiffuse, uv - dir*float(i)*0.006*(uKick+uSnare*0.5)).rgb; }
+  col = mix(col, blur*0.25, clamp(0.2*(uKick+uSnare*0.5),0.0,0.25));
   col += uFlash*rainbow(uHue+rr)*0.35;
   // トーンマップ + 彩度
   col = 1.0 - exp(-col*1.25);
