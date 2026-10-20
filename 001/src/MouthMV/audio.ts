@@ -7,6 +7,8 @@ export const LEN = 320; // 都市ループ長 (world units)
 
 const N = FRAMES + 2;
 const rawAny = raw as any;
+/** 曲ごとの構成 ('mouth1' = v1の流れ: 時刻キーフレームのカメラと8拍カット) */
+export const SONG: string = rawAny.song ?? 'mouth2';
 
 /** onset列 -> 指数減衰パルス (アタック瞬時、tauフレームで減衰) */
 const pulse = (onsets: number[], amps: number[] | null, tau: number, lead = 0) => {

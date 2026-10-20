@@ -263,7 +263,7 @@ void main(){
 
 export const POST_FRAG = /* glsl */ `
 ${COMMON}
-uniform sampler2D tDiffuse; uniform vec2 uRes; uniform float uKal, uFlash, uZoom, uRoll, uGrain;
+uniform sampler2D tDiffuse; uniform vec2 uRes; uniform float uKal, uFlash, uZoom, uRoll, uGrain; uniform vec2 uSun; uniform float uSunVis;
 varying vec2 vUv;
 vec2 kal(vec2 uv, float n){
   vec2 p = uv-0.5; p.x *= uRes.x/uRes.y;
@@ -289,6 +289,16 @@ void main(){
   for(int i=1;i<=4;i++){ blur += texture2D(tDiffuse, uv - dir*float(i)*0.006*(uKick+uSnare*0.5)).rgb; }
   col = mix(col, blur*0.25, clamp(0.2*(uKick+uSnare*0.5),0.0,0.25));
   col += uFlash*rainbow(uHue+rr)*0.35;
+  // 巨大な花から放射する光の筋(放射サンプリング)
+  if (uSunVis > 0.01 && uKal < 0.05) {
+    vec2 toSun = uSun - uv; float rays = 0.0;
+    for (int i = 0; i < 14; i++) {
+      float t = float(i)/14.0;
+      vec3 sm = texture2D(tDiffuse, uv + toSun*t*0.9).rgb;
+      rays += max(dot(sm, vec3(0.333)) - 0.8, 0.0)*(1.0 - t);
+    }
+    col += rainbow(uHue + 0.25)*rays*0.09*uSunVis*(0.5 + uInten + 0.5*uVoxOn);
+  }
   // トーンマップ + 彩度
   col = 1.0 - exp(-col*1.25);
   float l = dot(col, vec3(0.299,0.587,0.114));

@@ -111,6 +111,18 @@ void main(){
     float stripes = 0.5+0.5*sin(v*1.6 - uTime*5.0 + u*0.9);
     vec3 pc = rainbow(v*0.012 + id*0.2 + uHue*1.0 + stripes*0.15);
     col += pc*hole*win*(0.12 + 0.55*stripes)*(0.5+uInten);
+    // ネオン看板: 帯域ごとのイコライザーが走る広告板 (声の出だしで一斉に光る)
+    if (h11(id*11.7) > 0.58 && v < vI.w*0.7) {
+      float su = u/faceW; float sv = (v - 5.0)/7.0;
+      if (su > 0.16 && su < 0.84 && sv > 0.0 && sv < 1.0) {
+        float barsN = floor(su*16.0); float bf2 = fract(su*16.0);
+        float bh = specAt(mod(barsN, 16.0))*0.85 + 0.12 + 0.35*uVoxOn*h11(barsN + id*7.0);
+        float on = step(sv, bh)*smoothstep(0.0,0.12,bf2)*smoothstep(1.0,0.88,bf2);
+        vec3 sc = rainbow(id + barsN*0.06 + uHue + sv*0.2);
+        float edgeS = smoothstep(0.03,0.0,min(min(su-0.16, 0.84-su)*3.0, min(sv, 1.0-sv)*2.0 ));
+        col = mix(col*0.25, sc*(0.9 + 0.8*uBeat + 0.6*uVoxOn), on) + rainbow(uHue+id)*edgeS*0.7;
+      }
+    }
     // キックで駆け上がる光のリング
     float sweepY = uKickAge*7.0;
     float sw = exp(-pow((v - sweepY)*0.09,2.0));

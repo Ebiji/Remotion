@@ -30,6 +30,8 @@ const sstep = (a: number, b: number, x: number) => { const t = Math.min(1, Math.
 
 // 曲の展開に合わせたカメラ高度 (秒, y)
 const CAM_Y: [number, number][] = [[0, 4], [20, 5], [48, 7], [72, 10], [96, 7], [100, 4.5], [130, 9], [144, 5]];
+// v1 (Mouth1) のカメラの高さ: 序盤は路面、山場で屋上を越えて俯瞰、ブレイクで路面へ戻る
+const CAM_Y_V1: [number, number][] = [[0, 3.4], [14, 4.2], [24, 7], [48, 12], [64, 19], [70, 24], [73, 46], [84, 60], [95, 52], [97, 9], [100, 6], [104, 42], [120, 36], [130, 18], [144, 9]];
 const L = A.LEN;
 const roadR = (w: number) => 34 * Math.sin(6.2832 * w / L) + 12 * Math.sin(12.5664 * w / L + 1.3);
 const cumKick = (() => { const o = new Float32Array(A.FRAMES + 2); let s = 0; for (let f = 0; f < o.length; f++) { s += A.kick[f]; o[f] = s; } return o; })();
@@ -227,7 +229,7 @@ export class MVScene {
     this.bloom = new UnrealBloomPass(new THREE.Vector2(W / 2, H / 2), 0.7, 0.7, 0.5);
     this.composer.addPass(this.bloom);
     this.post = new ShaderPass({
-      uniforms: {...U, tDiffuse: {value: null}, uRes: {value: new THREE.Vector2(W, H)}, uKal: {value: 0}, uFlash: {value: 0}, uZoom: {value: 0}, uRoll: {value: 0}, uGrain: {value: 0.025}},
+      uniforms: {...U, tDiffuse: {value: null}, uRes: {value: new THREE.Vector2(W, H)}, uKal: {value: 0}, uFlash: {value: 0}, uZoom: {value: 0}, uRoll: {value: 0}, uGrain: {value: 0.025}, uSun: {value: new THREE.Vector2(0.5, 0.7)}, uSunVis: {value: 0}},
       vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
       fragmentShader: POST_FRAG,
     });
@@ -270,24 +272,36 @@ export class MVScene {
     U.uPlant.value = Math.min(1.25, 0.28 + sstep(2, 40, t) * 0.55 + inten * 0.5 + sstep(70, 80, t) * 0.15);
 
     // カメラ
-    const cy = 4 + 6 * inten + kick * 0.2; // 高さは曲の盛り上がりに追従
-    const low = 1 - sstep(10, 22, cy);
-    const cx = (Math.sin(t * 0.21) * 4 + Math.sin(t * 0.07 + 1) * 3) * (0.5 + 0.5 * low + 0.6 * (1 - low)) + Math.sin(t * 0.9) * 0.4 * bass;
+    const V1 = A.SONG === 'mouth1';
+    const cy = (V1 ? curve(CAM_Y_V1, t) : 4 + 6 * inten) + kick * 0.2; // v1: 時刻キーフレーム / 他: 曲の盛り上がりに追従
     // 曲がりくねる道に沿って進む: 視線は先のカーブを向き、体をバンクさせる
     U.uKickIdx.value = A.kickIdx[f];
     const road = (zz: number) => roadR(zz + A.travel[f]) - roadR(34 + A.travel[f]);
     const lookYaw = Math.atan2(road(150) * 0.75, 150);
-    const pos = new THREE.Vector3(Math.sin(t * 0.21) * 1.5, cy, 0);
-    const pitch = 0.28;
-    const roll = -0.2 * lookYaw + 0.012 * Math.sin(t * 0.4);
+    let pos = new THREE.Vector3(Math.sin(t * 0.21) * 1.5, cy, 0);
+    let pitch = V1 ? Math.atan2(95 * (1 - sstep(18, 60, cy) * 1.15), 300) : 0.28;
+    if (V1) pitch = Math.max(pitch, 0.18);
+    let yaw = lookYaw;
+    let roll = -0.2 * lookYaw + 0.012 * Math.sin(t * 0.4);
+    let fovAdd = 0;
+    if (V1) {
+      // v1の流れ: 盛り上がり区間は8拍ごとにカメラをカット (拍の頭で切り替わる)
+      const low = 1 - sstep(10, 22, cy);
+      const cx = (Math.sin(t * 0.21) * 4 + Math.sin(t * 0.07 + 1) * 3) * (0.5 + 0.5 * low + 0.6 * (1 - low)) * 0.5 + Math.sin(t * 0.9) * 0.2 * bass;
+      pos.set(cx, cy, 0);
+      const preset = inten > 0.55 ? Math.floor(mulberry(Math.floor(bp / 8) * 7919 + 13)() * 5) : 0;
+      if (preset === 1) { pos.set(cx * 0.5, 2.6, 0); pitch = 0.42; yaw = lookYaw * 0.6; }
+      else if (preset === 2) { pos.set(-9 + cx * 0.3, 15, 0); yaw = 0.62; pitch = 0.12; roll = -0.08; }
+      else if (preset === 3) { pos.set(cx, Math.max(cy, 36) + 30, 0); pitch = -0.5; yaw = lookYaw * 0.5; }
+      else if (preset === 4) { pos.set(6, 8, 0); roll = 0.22; fovAdd = 10; pitch = 0.2; yaw = lookYaw * 0.5; }
+    }
     const cutPulse = 0;
     this.camera.position.copy(pos);
-    const dir = new THREE.Vector3(Math.sin(lookYaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(lookYaw) * Math.cos(pitch));
+    const dir = new THREE.Vector3(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
     this.camera.up.set(0, 1, 0);
     this.camera.lookAt(pos.clone().addScaledVector(dir, 300));
     const rollDir = A.snareIdx[f] % 2 ? 1 : -1;
     this.camera.rotateZ(roll + rollDir * 0.008 * snare * (0.4 + inten));
-    const fovAdd = 0;
     this.camera.fov = 58 + fovAdd + 3.5 * kick * (0.5 + inten) + 1.2 * snare;
     this.camera.updateProjectionMatrix();
 
@@ -309,8 +323,13 @@ export class MVScene {
     // 万華鏡の曼荼羅は2小節(8拍)ぶん続く: 16拍の後半の8拍、ゆっくり出入り
     const ph8 = ((bp / 8) % 1 + 1) % 1;
     const kalOn = (inten > 0.5 ? 1 : 0) * (Math.floor(bp / 8) % 2 === 1 ? sstep(0, 0.2, ph8) * sstep(1, 0.8, ph8) : 0);
-    const dropHit = 0.6 * A.dropFlash[f];
+    const dropHit = V1 ? (t >= 72 && t < 72.4 ? 0.6 * (1 - (t - 72) / 0.4) : t >= 100 && t < 100.35 ? 0.6 * (1 - (t - 100) / 0.35) : 0) : 0.6 * A.dropFlash[f];
     const P = this.post.uniforms;
+    {
+      const sp = new THREE.Vector3().copy(HERO_POS).project(this.camera);
+      P.uSun.value.set(sp.x * 0.5 + 0.5, sp.y * 0.5 + 0.5);
+      P.uSunVis.value = sp.z < 1 ? Math.max(0, 1 - Math.max(Math.abs(sp.x), Math.abs(sp.y)) * 0.8) : 0;
+    }
     P.uKal.value = kalOn; P.uFlash.value = Math.max(0.08 * snare * inten, dropHit * 0.4);
     P.uZoom.value = 0.012 * kick * (0.35 + inten) + 0.005 * snare;
     this.bloom.strength = 0.36 + 0.3 * kick + 0.18 * inten;
