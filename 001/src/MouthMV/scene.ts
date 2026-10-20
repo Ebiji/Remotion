@@ -5,11 +5,14 @@ import {UnrealBloomPass} from 'three/examples/jsm/postprocessing/UnrealBloomPass
 import {ShaderPass} from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import * as A from './audio';
 import {BUILDING_VERT, BUILDING_FRAG, GROUND_VERT, GROUND_FRAG, SKY_VERT, SKY_FRAG} from './glsl';
-import {LAMP_VERT, LAMP_FRAG, RIBBON_VERT, RIBBON_FRAG, PLANT_VERT, PLANT_FRAG, HERO_VERT, HERO_FRAG, SUN_VERT, SUN_FRAG, PART_VERT, PART_FRAG, POST_FRAG} from './glsl2';
+import {LAMP_VERT, LAMP_FRAG, RIBBON_VERT, RIBBON_FRAG, PLANT_VERT, PLANT_FRAG, HERO_VERT, HERO_FRAG, HERO_VERT_V1, HERO_FRAG_V1, SUN_VERT, SUN_FRAG, PART_VERT, PART_FRAG, POST_FRAG} from './glsl2';
 import {buildSpecies, mulberry} from './plants';
 import {mergeGeometries} from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
-const HERO_POS = new THREE.Vector3(0, 215, -560);
+const IS_V1 = A.SONG === 'mouth1';
+/** v1の中央の花は小さめ・高い位置 / 新しい版は空いっぱい */
+const HERO_POS = IS_V1 ? new THREE.Vector3(0, 235, -600) : new THREE.Vector3(0, 215, -560);
+const HERO_SCALE = IS_V1 ? 2.1 : 3.6;
 
 /** Catmull-Romで滑らかに補間するキーフレーム */
 const curve = (keys: [number, number][], t: number) => {
@@ -33,7 +36,8 @@ const CAM_Y: [number, number][] = [[0, 4], [20, 5], [48, 7], [72, 10], [96, 7], 
 // v1 (Mouth1) のカメラの高さ: 序盤は路面、山場で屋上を越えて俯瞰、ブレイクで路面へ戻る
 const CAM_Y_V1: [number, number][] = [[0, 3.4], [14, 4.2], [24, 7], [48, 12], [64, 19], [70, 24], [73, 46], [84, 60], [95, 52], [97, 9], [100, 6], [104, 42], [120, 36], [130, 18], [144, 9]];
 const L = A.LEN;
-const roadR = (w: number) => 34 * Math.sin(6.2832 * w / L) + 12 * Math.sin(12.5664 * w / L + 1.3);
+const ROAD_AMP = IS_V1 ? 0 : 1; // v1 は直線の道
+const roadR = (w: number) => ROAD_AMP * (34 * Math.sin(6.2832 * w / L) + 12 * Math.sin(12.5664 * w / L + 1.3));
 const cumKick = (() => { const o = new Float32Array(A.FRAMES + 2); let s = 0; for (let f = 0; f < o.length; f++) { s += A.kick[f]; o[f] = s; } return o; })();
 
 export class MVScene {
@@ -63,7 +67,7 @@ export class MVScene {
     this.U = {
       uTime: {value: 0}, uTravel: {value: 0}, uLen: {value: A.LEN}, uKick: {value: 0}, uSnare: {value: 0}, uHat: {value: 0},
       uBass: {value: 0}, uMid: {value: 0}, uInten: {value: 0}, uHue: {value: 0}, uBeat: {value: 0}, uKickAge: {value: 99},
-      uBeatPos: {value: 0}, uKickIdx: {value: 0}, uBend: {value: 0}, uVox: {value: 0}, uVoxOn: {value: 0}, uPitch: {value: 0}, uSpec: {value: this.spec}, uPlant: {value: 0},
+      uBeatPos: {value: 0}, uKickIdx: {value: 0}, uBend: {value: 0}, uRoadAmp: {value: IS_V1 ? 0 : 1}, uMand: {value: new THREE.Vector2(IS_V1 ? 0.55 : 0.2, IS_V1 ? 0.5 : 0.2)}, uVox: {value: 0}, uVoxOn: {value: 0}, uPitch: {value: 0}, uSpec: {value: this.spec}, uPlant: {value: 0},
     };
     const U = this.U;
     const mk = (vs: string, fs: string, extra: any = {}, params: THREE.ShaderMaterialParameters = {}) =>
@@ -86,7 +90,7 @@ export class MVScene {
     const SLOTS = 16, LANES = 5, pitch = A.LEN / SLOTS;
     type Inst = {a: number[]; b: number[]; sp: number; w: number[]};
     const insts: Inst[] = [];
-    const HMAX = [[12, 14], [20, 20], [30, 28], [40, 34], [50, 42]];
+    const HMAX = IS_V1 ? [[14, 14], [28, 28], [45, 40], [60, 50], [80, 70]] : [[12, 14], [20, 20], [30, 28], [40, 34], [50, 42]];
     const STREET = 24;
     for (const side of [-1, 1]) for (let l = 0; l < LANES; l++) for (let s = 0; s < SLOTS; s++) {
       const w = 11 + R() * 6, d = 12 + R() * 5;
@@ -194,21 +198,21 @@ export class MVScene {
       g.setAttribute('position', base.attributes.position); g.setAttribute('uv', base.attributes.uv); g.setAttribute('normal', base.attributes.normal);
       g.setAttribute('aN', new THREE.InstancedBufferAttribute(Float32Array.from({length: total}, (_, i) => i), 1));
       g.instanceCount = total;
-      const mat = mk(HERO_VERT, HERO_FRAG, {uBloom: {value: 0}, uSpin: {value: 0}, uTotal: {value: total}, uHueOff: {value: hueOff}}, {side: THREE.DoubleSide});
+      const mat = mk(IS_V1 ? HERO_VERT_V1 : HERO_VERT, IS_V1 ? HERO_FRAG_V1 : HERO_FRAG, {uBloom: {value: 0}, uSpin: {value: 0}, uTotal: {value: total}, uHueOff: {value: hueOff}}, {side: THREE.DoubleSide});
       const mesh = new THREE.Mesh(g, mat); mesh.frustumCulled = false;
       this.heroGroup.add(mesh);
       this.heroes.push({mat, mesh, spin: spinSign, hueOff});
       return mesh;
     };
-    const m1 = makePetals(233, 1, 0);
-    const m2 = makePetals(89, -1, 0.5); m2.scale.setScalar(0.5); m2.position.z = 14;
-    const m3 = makePetals(34, 1, 0.25); m3.scale.setScalar(0.22); m3.position.z = 26;
+    const m1 = makePetals(IS_V1 ? 610 : 233, 1, 0);
+    const m2 = makePetals(IS_V1 ? 233 : 89, -1, 0.5); m2.scale.setScalar(0.5); m2.position.z = 14;
+    const m3 = makePetals(IS_V1 ? 89 : 34, 1, 0.25); m3.scale.setScalar(0.22); m3.position.z = 26;
     this.heroGroup.position.copy(HERO_POS);
-    this.heroGroup.scale.setScalar(3.6);
+    this.heroGroup.scale.setScalar(HERO_SCALE);
     this.scene.add(this.heroGroup);
     const sunMat = mk(SUN_VERT, SUN_FRAG, {}, {transparent: true, blending: THREE.AdditiveBlending, depthWrite: false});
     this.sun = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), sunMat); this.sun.frustumCulled = false;
-    this.sun.position.z = 34; this.sun.scale.setScalar(45);
+    this.sun.position.z = 34; this.sun.scale.setScalar(IS_V1 ? 60 : 45);
     this.heroGroup.add(this.sun);
 
     // ---- 花粉 / 胞子 ----
@@ -306,14 +310,14 @@ export class MVScene {
     this.camera.updateProjectionMatrix();
 
     // 巨大花
-    const bloom = Math.min(1.2, 0.55 + inten * 0.55 + 0.1 * kick);
+    const bloom = IS_V1 ? Math.min(1.15, 0.12 + inten * 1.0 + 0.12 * kick) : Math.min(1.2, 0.55 + inten * 0.55 + 0.1 * kick);
     const spinBase = t * 0.07 + cumKick[f] * 0.012;
     this.heroes.forEach((h, i) => {
       h.mat.uniforms.uBloom.value = Math.min(1.2, bloom * (1 + i * 0.05));
       h.mat.uniforms.uSpin.value = spinBase * h.spin * (1 + i * 0.6);
     });
     this.heroGroup.rotation.z = Math.sin(t * 0.05) * 0.12;
-    this.heroGroup.scale.setScalar(3.6 * (1 + 0.05 * kick));
+    this.heroGroup.scale.setScalar(HERO_SCALE * (1 + 0.05 * kick));
     const hd = new THREE.Vector3().subVectors(HERO_POS, pos).normalize();
     this.sky.uniforms.uHeroDir.value.copy(hd);
     this.sky.uniforms.uKal.value = Math.floor(bar / 4) % 4;

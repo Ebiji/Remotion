@@ -217,6 +217,75 @@ void main(){
   gl_FragColor = vec4(min(col, vec3(1.8)), 1.0);
 }`;
 
+/** v1の中央の花 (花弁の中にIFSフラクタル) */
+export const HERO_VERT_V1 = /* glsl */ `
+${COMMON}
+attribute float aN;       // 花弁の番号
+uniform float uBloom, uSpin, uTotal, uHueOff;
+varying vec3 vNn; varying vec2 vUV; varying float vF; varying vec3 vWp;
+void main(){
+  float f = (aN+0.5)/uTotal;
+  float ang = aN*2.399963 + uSpin;
+  float R = 100.0;
+  float rad = sqrt(f)*R*0.62;
+  vec2 rd = vec2(cos(ang), sin(ang));
+  // 内側から順に開花
+  float open = smoothstep(f*0.75, f*0.75+0.35, uBloom*1.2);
+  float el = mix(1.38, 0.10 + 0.45*(1.0-f), open) + 0.06*sin(uTime*2.0 + aN*0.3) + 0.22*uKick*(1.0-f) + 0.12*uVoxOn*sin(aN*0.7 + uTime*3.0)*(1.0-f);
+  vec3 radial = vec3(rd, 0.0);
+  vec3 fwd = normalize(radial*cos(el) + vec3(0.0,0.0,sin(el)));
+  vec3 side = vec3(-rd.y, rd.x, 0.0);
+  float len = R*(0.12 + 0.66*pow(f,0.6))*(0.30+0.70*open);
+  float wid = len*0.27;
+  float v = uv.y; float u = uv.x*2.0-1.0;
+  float prof = pow(sin(3.14159*min(1.0,0.10+v*0.9)), 0.75);
+  vec3 dirv = fwd;
+  vec3 pos = vec3(rad*rd, 0.0) + dirv*(v*len);
+  pos.z -= 0.35*len*v*v*(1.0-0.5*open);   // 弓なりに反る
+  pos += side*(u*wid*prof);
+  pos.z += u*u*wid*0.35*prof*v;            // 花弁の窪み
+  vec3 nn = normalize(cross(side, dirv));
+  vNn = normalize(mat3(modelMatrix)*nn); vUV = vec2(u, v); vF = f;
+  vec4 wp = modelMatrix*vec4(pos,1.0);
+  vWp = wp.xyz;
+  gl_Position = projectionMatrix*viewMatrix*wp;
+}`;
+
+export const HERO_FRAG_V1 = /* glsl */ `
+${COMMON}
+uniform float uHueOff;
+varying vec3 vNn; varying vec2 vUV; varying float vF; varying vec3 vWp;
+void main(){
+  vec3 N = normalize(vNn); if(!gl_FrontFacing) N=-N;
+  vec3 V = normalize(cameraPosition - vWp);
+  float rim = pow(1.0-max(dot(N,V),0.0), 2.0);
+  vec2 p = vec2(vUV.x*0.6, vUV.y*1.1);
+  // 花弁の中のIFSフラクタル (折り畳み)
+  float acc = 0.0; float tr = 1e3;
+  for(int i=0;i<4;i++){
+    p = abs(p) - vec2(0.17, 0.10);
+    p *= rot(0.55 + 0.1*sin(uTime*0.3 + float(i)));
+    p *= 1.55;
+    tr = min(tr, abs(p.x*p.y));
+    acc += exp(-length(p)*1.3);
+  }
+  float lines = exp(-tr*5.0);
+  float hue = vF*1.15 + vUV.y*0.28 + uHue + uHueOff + uPitch*0.2*uVox;
+  vec3 base = rainbow(hue);
+  vec3 col = base*(0.18 + 0.35*(0.5+0.5*dot(N,normalize(vec3(0.3,0.5,0.8)))));
+  col += rainbow(hue+0.35)*lines*(1.0+1.4*uKick);
+  col += rainbow(hue+0.15)*acc*0.12;
+  col += rainbow(hue+0.5)*rim*1.0;
+  col += vec3(1.0,0.9,0.8)*pow(1.0-vUV.y,6.0)*0.35*(1.0-vF);
+  col *= 0.8 + 0.35*uBeat + 0.45*uKick;
+  // 先端の発光
+  col += rainbow(hue+0.2)*smoothstep(0.9,1.0,vUV.y)*0.6;
+  float edge = smoothstep(1.0,0.55,abs(vUV.x));
+  col *= 0.25 + 0.75*edge;
+  col += rainbow(hue+0.6)*smoothstep(0.78,1.0,abs(vUV.x))*0.5*(0.5+uInten);
+  gl_FragColor = vec4(min(col, vec3(2.0)), 1.0);
+}`;
+
 export const SUN_VERT = /* glsl */ `
 varying vec2 vUv;
 void main(){ vUv = uv*2.0-1.0; gl_Position = projectionMatrix*viewMatrix*modelMatrix*vec4(position,1.0); }`;

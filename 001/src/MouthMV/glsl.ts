@@ -1,12 +1,13 @@
 /** 共有GLSL: ユニフォーム・ノイズ・虹パレット・ビルの挙動(ビルと植物で同一計算) */
 export const COMMON = /* glsl */ `
-uniform float uTime, uTravel, uLen, uKick, uSnare, uHat, uBass, uMid, uInten, uHue, uBeat, uKickAge, uBeatPos, uKickIdx, uBend, uVox, uVoxOn, uPitch;
+uniform float uTime, uTravel, uLen, uKick, uSnare, uHat, uBass, uMid, uInten, uHue, uBeat, uKickAge, uBeatPos, uKickIdx, uBend, uVox, uVoxOn, uPitch, uRoadAmp;
+uniform vec2 uMand;
 uniform float uSpec[16];
 float h11(float p){p=fract(p*.1031);p*=p+33.33;p*=p+p;return fract(p);}
 float h21(vec2 p){vec3 p3=fract(vec3(p.xyx)*.1031);p3+=dot(p3,p3.yzx+33.33);return fract((p3.x+p3.y)*p3.z);}
 vec3 rainbow(float h){vec3 c=0.5+0.5*cos(6.28318*(h+vec3(0.0,0.33,0.67))); c = c*c*(1.4-0.4*c)*1.25; c.g *= (1.0 - 0.6*c.r)*0.92; return c;}
 mat2 rot(float a){float c=cos(a),s=sin(a);return mat2(c,-s,s,c);}
-float roadR(float w){ float L=uLen; return 34.0*sin(6.2832*w/L) + 12.0*sin(12.5664*w/L + 1.3); }
+float roadR(float w){ float L=uLen; return uRoadAmp*(34.0*sin(6.2832*w/L) + 12.0*sin(12.5664*w/L + 1.3)); }
 float roadX(float zz){ return roadR(zz+uTravel) - roadR(34.0+uTravel); }
 float specAt(float i){
   return uSpec[int(i)];
@@ -266,7 +267,7 @@ void main(){
   float lines = exp(-trap*4.0), web = exp(-trap2*1.6);
   vec3 mand = rainbow(trap2*0.6 + r*0.35 + uHue*1.5)*(lines*1.1 + web*0.35);
   float mmask = smoothstep(2.8, 0.6, r)*step(0.0, cz);
-  col += mand*mmask*(0.2+0.2*uInten);
+  col += mand*mmask*(uMand.x + uMand.y*uInten);
   float ring = exp(-pow((fract(r*2.2 - uTime*0.15)-0.5)*8.0,2.0));
   col += rainbow(r + uHue)*ring*0.12*(0.4+uInten)*mmask;
   // ペイズリーの雲 (2層のパララックス)
