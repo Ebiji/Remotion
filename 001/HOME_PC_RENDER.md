@@ -87,6 +87,7 @@ node scripts/render_chunks.mjs 100 out\home4k 3840 2160 angle 1
 ```powershell
 node scripts/finish_video.mjs out\home1080 out\mouth-1080p.mp4          # 速い(再圧縮なし・ファイルは大きい)
 node scripts/finish_video.mjs out\home1080 out\mouth-1080p.mp4 small    # 再圧縮して小さくする(1080pで約300MB)
+node scripts/finish_video.mjs out\home4k out\mouth-4k.mp4 small          # 4Kを再圧縮(上限45Mbps・約700MB〜1GB)
 ```
 
 - 曲の頭に0.5秒のフェードイン、終わりに3秒のフェードアウトが付きます。
@@ -94,6 +95,8 @@ node scripts/finish_video.mjs out\home1080 out\mouth-1080p.mp4 small    # 再圧
 - `ffmpeg` が見つからない場合は、フェード無しで仕上がります。手順0のとおり `winget install Gyan.FFmpeg` を入れてください。
 
 ---
+
+> **この環境での実測(GPUなし・4K)**: 1フレーム約14.7秒(並列2)でした。全編で約17.6時間かかる計算です。GPUがある家のPCのほうが、桁違いに速くなるはずです。
 
 ## 8. GTX 1650 4GB での速度の見込み(計算)
 

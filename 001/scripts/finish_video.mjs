@@ -16,6 +16,9 @@ const frames = JSON.parse(fs.readFileSync('src/MouthMV/analysis.json', 'utf8')).
 const dur = frames / 30;
 // 通常のffmpegがあればそれを使う (フェード等に必要)。なければ Remotion付属のffmpeg (フェードなし) で仕上げる。
 const hasSys = (() => { try { execFileSync('ffmpeg', ['-version'], {stdio: 'ignore', shell: process.platform === 'win32'}); return true; } catch { return false; } })();
+// 圧縮の上限ビットレート: 画面が大きいほど高く (4Kは約45Mbps)
+const widthOf = (() => { try { return +execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width', '-of', 'csv=p=0', path.resolve(dir, chunks[0])], {shell: process.platform === 'win32'}).toString().trim(); } catch { return 1920; } })();
+const maxrate = widthOf >= 3000 ? ['-maxrate', '45000k', '-bufsize', '80000k'] : widthOf >= 2400 ? ['-maxrate', '24000k', '-bufsize', '40000k'] : ['-maxrate', '14000k', '-bufsize', '24000k'];
 const ff = (args) => hasSys
   ? execFileSync('ffmpeg', ['-v', 'error', '-y', ...args], {stdio: 'inherit', shell: process.platform === 'win32'})
   : execFileSync(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['remotion', 'ffmpeg', '-v', 'error', '-y', ...args], {stdio: 'inherit', shell: process.platform === 'win32'});
@@ -25,7 +28,7 @@ if ((song === 'mouth1' || !hasSys) && !(opt === 'small' && hasSys)) {
   const af = hasSys ? ['-af', `afade=t=in:d=0.5,afade=t=out:st=${(dur - 3).toFixed(2)}:d=3`] : [];
   ff(['-f', 'concat', '-safe', '0', '-i', list, '-i', audio, '-map', '0:v', '-map', '1:a', ...af, '-c:v', 'copy', '-c:a', 'aac', '-b:a', '256k', '-shortest', '-movflags', '+faststart', outFile]);
 } else if (song === 'mouth1') {
-  ff(['-f', 'concat', '-safe', '0', '-i', list, '-i', audio, '-map', '0:v', '-map', '1:a', '-af', `afade=t=in:d=0.5,afade=t=out:st=${(dur - 3).toFixed(2)}:d=3`, '-c:v', 'libx264', '-crf', '20', '-maxrate', '14000k', '-bufsize', '24000k', '-preset', 'slow', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '256k', '-shortest', '-movflags', '+faststart', outFile]);
+  ff(['-f', 'concat', '-safe', '0', '-i', list, '-i', audio, '-map', '0:v', '-map', '1:a', '-af', `afade=t=in:d=0.5,afade=t=out:st=${(dur - 3).toFixed(2)}:d=3`, '-c:v', 'libx264', '-crf', '20', ...maxrate, '-preset', 'slow', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '256k', '-shortest', '-movflags', '+faststart', outFile]);
 } else {
   const total = 153; // 末尾に無音の暗転を足して 2分33秒
   ff(['-f', 'concat', '-safe', '0', '-i', list, '-i', audio, '-filter_complex', `[0:v]tpad=stop_mode=clone:stop_duration=2,trim=duration=${total},setpts=PTS-STARTPTS[v];[1:a]afade=t=in:d=0.5,afade=t=out:st=${(dur - 3).toFixed(2)}:d=3,apad=whole_dur=${total}[a]`, '-map', '[v]', '-map', '[a]', '-c:v', 'libx264', '-crf', '18', '-preset', 'slow', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '256k', '-t', String(total), '-movflags', '+faststart', outFile]);
