@@ -1,6 +1,6 @@
 /** 共有GLSL: ユニフォーム・ノイズ・虹パレット・ビルの挙動(ビルと植物で同一計算) */
 export const COMMON = /* glsl */ `
-uniform float uTime, uTravel, uLen, uKick, uSnare, uHat, uBass, uMid, uInten, uHue, uBeat, uKickAge, uBeatPos, uKickIdx, uBend, uVox, uVoxOn, uPitch, uRoadAmp;
+uniform float uTime, uTravel, uLen, uKick, uSnare, uHat, uBass, uMid, uInten, uHue, uBeat, uKickAge, uBeatPos, uKickIdx, uBend, uVox, uVoxOn, uPitch, uRoadAmp, uExtras;
 uniform vec2 uMand;
 uniform float uSpec[16];
 float h11(float p){p=fract(p*.1031);p*=p+33.33;p*=p+p;return fract(p);}
@@ -113,7 +113,7 @@ void main(){
     vec3 pc = rainbow(v*0.012 + id*0.2 + uHue*1.0 + stripes*0.15);
     col += pc*hole*win*(0.12 + 0.55*stripes)*(0.5+uInten);
     // ネオン看板: 帯域ごとのイコライザーが走る広告板 (声の出だしで一斉に光る)
-    if (h11(id*11.7) > 0.58 && v < vI.w*0.7) {
+    if (uExtras > 0.5 && h11(id*11.7) > 0.58 && v < vI.w*0.7) {
       float su = u/faceW; float sv = (v - 5.0)/7.0;
       if (su > 0.16 && su < 0.84 && sv > 0.0 && sv < 1.0) {
         float barsN = floor(su*16.0); float bf2 = fract(su*16.0);

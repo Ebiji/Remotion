@@ -67,7 +67,7 @@ export class MVScene {
     this.U = {
       uTime: {value: 0}, uTravel: {value: 0}, uLen: {value: A.LEN}, uKick: {value: 0}, uSnare: {value: 0}, uHat: {value: 0},
       uBass: {value: 0}, uMid: {value: 0}, uInten: {value: 0}, uHue: {value: 0}, uBeat: {value: 0}, uKickAge: {value: 99},
-      uBeatPos: {value: 0}, uKickIdx: {value: 0}, uBend: {value: 0}, uRoadAmp: {value: IS_V1 ? 0 : 1}, uMand: {value: new THREE.Vector2(IS_V1 ? 0.55 : 0.2, IS_V1 ? 0.5 : 0.2)}, uVox: {value: 0}, uVoxOn: {value: 0}, uPitch: {value: 0}, uSpec: {value: this.spec}, uPlant: {value: 0},
+      uBeatPos: {value: 0}, uKickIdx: {value: 0}, uBend: {value: 0}, uRoadAmp: {value: IS_V1 ? 0 : 1}, uExtras: {value: IS_V1 ? 1 : 0}, uMand: {value: new THREE.Vector2(IS_V1 ? 0.55 : 0.2, IS_V1 ? 0.5 : 0.2)}, uVox: {value: 0}, uVoxOn: {value: 0}, uPitch: {value: 0}, uSpec: {value: this.spec}, uPlant: {value: 0},
     };
     const U = this.U;
     const mk = (vs: string, fs: string, extra: any = {}, params: THREE.ShaderMaterialParameters = {}) =>

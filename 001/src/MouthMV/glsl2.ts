@@ -359,7 +359,7 @@ void main(){
   col = mix(col, blur*0.25, clamp(0.2*(uKick+uSnare*0.5),0.0,0.25));
   col += uFlash*rainbow(uHue+rr)*0.35;
   // 巨大な花から放射する光の筋(放射サンプリング)
-  if (uSunVis > 0.01 && uKal < 0.05) {
+  if (uExtras > 0.5 && uSunVis > 0.01 && uKal < 0.05) {
     vec2 toSun = uSun - uv; float rays = 0.0;
     for (int i = 0; i < 14; i++) {
       float t = float(i)/14.0;
