@@ -4,6 +4,7 @@ import {SingleImageMorph, MORPH_DURATION} from './SingleImageMorph';
 import {MorphChain, CHAIN_DURATION} from './MorphChain';
 import {QuantumMorph, QUANTUM_DURATION} from './QuantumMorph';
 import {MouthMV, MOUTH_DURATION} from './MouthMV/MouthMV';
+import {TitleOverlay, TITLE_DURATION} from './TitleOverlay';
 
 export const Root: React.FC = () => (
   <>
@@ -20,5 +21,6 @@ export const Root: React.FC = () => (
   <Composition id="QuantumMorph" component={QuantumMorph} durationInFrames={QUANTUM_DURATION} fps={30} width={720} height={1280} />
   <Composition id="QuantumMorph169" component={QuantumMorph} defaultProps={{withAudio: false}} durationInFrames={QUANTUM_DURATION} fps={30} width={1280} height={720} />
   <Composition id="MouthMV" component={MouthMV} durationInFrames={MOUTH_DURATION} fps={30} width={1280} height={720} />
+  <Composition id="TitleOverlay" component={TitleOverlay} defaultProps={{text: 'Fluctuating Flowers'}} durationInFrames={TITLE_DURATION} fps={30} width={2560} height={1440} />
   </>
 );
