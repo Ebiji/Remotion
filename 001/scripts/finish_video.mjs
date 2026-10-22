@@ -1,6 +1,6 @@
 // 使い方: node scripts/finish_video.mjs <チャンクのフォルダ> <出力ファイル> [small] [title=<タイトル連番のフォルダ>]
-// チャンクを結合し、曲に応じたマスター音源を付ける。頭0.5秒フェードイン・終わり3秒フェードアウト。
-// Mouth2 は末尾に無音の暗転を足して 2分33秒 にする。title=... を付けると、曲の最後の15秒にタイトル文字を重ねる
+// チャンクを結合し、曲に応じたマスター音源を付ける。頭0.5秒フェードイン。
+// 曲の終わりのあとに3秒の無音の暗転を足す(終わりのフェードアウトはかけず、音源を最後まで流す)。title=... を付けると、曲の最後の15秒にタイトル文字を重ねる
 // (文字の連番は scripts/render_title.mjs で作る)。ffmpegは通常のもの(フェード等に必要)があればそれを使い、なければ Remotion付属を使う。
 import fs from 'node:fs';
 import path from 'node:path';
@@ -26,16 +26,17 @@ const ff = (args) => hasSys
   ? execFileSync('ffmpeg', ['-v', 'error', '-y', ...args], {stdio: 'inherit', shell: win})
   : execFileSync(win ? 'npx.cmd' : 'npx', ['remotion', 'ffmpeg', '-v', 'error', '-y', ...args], {stdio: 'inherit', shell: win});
 if (!hasSys) console.warn('※ ffmpegが見つからないため、フェード・末尾の暗転・タイトルなしで仕上げます (winget install Gyan.FFmpeg で導入できます)');
-const fade = `afade=t=in:d=0.5,afade=t=out:st=${(dur - 3).toFixed(2)}:d=3`;
+const TAIL = 3;                                   // 曲の終わりのあとに足す無音の暗転(秒)
+const fade = `afade=t=in:d=0.5`;                 // 頭だけフェードイン。終わりは音源そのままで最後まで流す
 const enc = ['-c:v', 'libx264', '-crf', small || titleDir ? '20' : '18', ...maxrate, '-preset', 'slow', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '256k', '-movflags', '+faststart'];
 if (!hasSys) {
   ff(['-f', 'concat', '-safe', '0', '-i', list, '-i', audio, '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '256k', '-shortest', '-movflags', '+faststart', outFile]);
-} else if (song === 'mouth1' && !small && !titleDir) {
+} else if (false) {
   // 映像は再エンコードせずに結合 (速い)
   ff(['-f', 'concat', '-safe', '0', '-i', list, '-i', audio, '-map', '0:v', '-map', '1:a', '-af', fade, '-c:v', 'copy', '-c:a', 'aac', '-b:a', '256k', '-shortest', '-movflags', '+faststart', outFile]);
 } else {
-  const total = song === 'mouth2' ? 153 : dur; // Mouth2は末尾に無音の暗転を足して 2分33秒
-  const base = song === 'mouth2' ? `[0:v]tpad=stop_mode=clone:stop_duration=2,trim=duration=${total},setpts=PTS-STARTPTS` : `[0:v]setpts=PTS-STARTPTS`;
+  const total = +(dur + TAIL).toFixed(3);        // 曲の長さ + 暗転 (Mouth2は約2分34.6秒)
+  const base = `[0:v]tpad=stop_mode=clone:stop_duration=${TAIL + 1},trim=duration=${total},setpts=PTS-STARTPTS`;
   const t0 = (dur - 15).toFixed(3);          // 曲の最後の15秒
   const inputs = ['-f', 'concat', '-safe', '0', '-i', list, '-i', audio];
   let vf = `${base}[v]`;
@@ -43,7 +44,7 @@ if (!hasSys) {
     inputs.push('-framerate', '30', '-i', path.resolve(titleDir, 'element-%03d.png').replace(/\\/g, '/'));
     vf = `${base}[b];[2:v]format=rgba,setpts=PTS-STARTPTS+${t0}/TB[t];[b][t]overlay=format=auto:eof_action=pass[v]`;
   }
-  const af = song === 'mouth2' ? `${fade},apad=whole_dur=${total}` : fade;
+  const af = `${fade},apad=whole_dur=${total}`;
   ff([...inputs, '-filter_complex', `${vf};[1:a]${af}[a]`, '-map', '[v]', '-map', '[a]', ...enc, '-t', String(total), outFile]);
 }
 console.log('完成:', outFile);
