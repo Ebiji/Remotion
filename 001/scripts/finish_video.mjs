@@ -19,7 +19,9 @@ fs.writeFileSync(list, chunks.map((c) => `file '${path.resolve(dir, c).replace(/
 const dur = meta.frames / 30;           // 曲の長さ(秒)
 const win = process.platform === 'win32';
 const hasSys = (() => { try { execFileSync('ffmpeg', ['-version'], {stdio: 'ignore', shell: win}); return true; } catch { return false; } })();
-const widthOf = (() => { try { return +execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width', '-of', 'csv=p=0', path.resolve(dir, chunks[0])], {shell: win}).toString().trim(); } catch { return 1920; } })();
+const scaleOpt = opts.find((o) => /^w\d+$/.test(o));   // 例: w1280 → その幅に縮小して書き出す(4Kから720pを作るとき高画質)
+const widthSrc = (() => { try { return +execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width', '-of', 'csv=p=0', path.resolve(dir, chunks[0])], {shell: win}).toString().trim(); } catch { return 1920; } })();
+const widthOf = scaleOpt ? +scaleOpt.slice(1) : widthSrc;
 // 圧縮の上限ビットレート: 画面が大きいほど高く (4Kは約45Mbps)
 const hq = opts.includes('hq');                  // hq: ブロックノイズが出ないよう、ビットレートを大きく取る
 const maxrate = hq ? (widthOf >= 3000 ? ['-maxrate', '120000k', '-bufsize', '240000k'] : widthOf >= 2400 ? ['-maxrate', '60000k', '-bufsize', '120000k'] : ['-maxrate', '30000k', '-bufsize', '60000k']) : widthOf >= 3000 ? ['-maxrate', '45000k', '-bufsize', '80000k'] : widthOf >= 2400 ? ['-maxrate', '24000k', '-bufsize', '40000k'] : ['-maxrate', '14000k', '-bufsize', '24000k'];
@@ -37,7 +39,7 @@ if (!hasSys) {
   ff(['-f', 'concat', '-safe', '0', '-i', list, '-i', audio, '-map', '0:v', '-map', '1:a', '-af', fade, '-c:v', 'copy', '-c:a', 'aac', '-b:a', '256k', '-shortest', '-movflags', '+faststart', outFile]);
 } else {
   const total = +(dur + TAIL).toFixed(3);        // 曲の長さ + 暗転 (Mouth2は約2分34.6秒)
-  const base = `[0:v]tpad=stop_mode=clone:stop_duration=${TAIL + 1},trim=duration=${total},setpts=PTS-STARTPTS`;
+  const base = `[0:v]tpad=stop_mode=clone:stop_duration=${TAIL + 1},trim=duration=${total},setpts=PTS-STARTPTS${scaleOpt ? `,scale=${scaleOpt.slice(1)}:-2:flags=lanczos` : ''}`;
   const t0 = (dur - 15).toFixed(3);          // 曲の最後の15秒
   const inputs = ['-f', 'concat', '-safe', '0', '-i', list, '-i', audio];
   let vf = `${base}[v]`;
