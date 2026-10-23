@@ -48,7 +48,7 @@ if (!hasSys) {
   let vf = `${base}[v]`;
   if (titleDir) {
     inputs.push('-framerate', '30', '-i', path.resolve(titleDir, 'element-%03d.png').replace(/\\/g, '/'));
-    vf = `${base}[b];[2:v]format=rgba,setpts=PTS-STARTPTS+${t0}/TB[t];[b][t]overlay=format=auto:eof_action=pass[v]`;
+    vf = `${base}[b];[2:v]format=rgba${scaleOpt ? `,scale=${scaleOpt.slice(1)}:-2:flags=lanczos` : ''},setpts=PTS-STARTPTS+${t0}/TB[t];[b][t]overlay=format=auto:eof_action=pass[v]`;
   }
   const af = `${fade},apad=whole_dur=${total}`;
   ff([...inputs, '-filter_complex', `${vf};[1:a]${af}[a]`, '-map', '[v]', '-map', '[a]', ...enc, '-t', String(total), outFile]);
