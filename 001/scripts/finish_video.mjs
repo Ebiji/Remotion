@@ -32,7 +32,9 @@ const ff = (args) => hasSys
 if (!hasSys) console.warn('※ ffmpegが見つからないため、フェード・末尾の暗転・タイトルなしで仕上げます (winget install Gyan.FFmpeg で導入できます)');
 const TAIL = 3;                                   // 曲の終わりのあとに足す無音の暗転(秒)
 const fade = `afade=t=in:d=0.5`;                 // 頭だけフェードイン。終わりは音源そのままで最後まで流す
-const enc = ['-c:v', 'libx264', '-crf', hq ? '14' : small || titleDir ? '20' : '18', ...maxrate, '-preset', 'slow', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '256k', '-movflags', '+faststart'];
+const vbOpt = opts.find((o) => /^vb\d+$/.test(o));       // 例: vb23000 → H.265で平均ビットレートkbpsを指定(容量を揃えたいとき)
+const vb = vbOpt ? +vbOpt.slice(2) : 0;
+const enc = opts.includes('hevc') ? ['-c:v', 'libx265', '-preset', 'medium', ...(vb ? ['-b:v', `${vb}k`, '-x265-params', `vbv-maxrate=${Math.round(vb * 1.8)}:vbv-bufsize=${Math.round(vb * 3.5)}:log-level=error`] : ['-crf', '18']), '-tag:v', 'hvc1', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '256k', '-movflags', '+faststart'] : ['-c:v', 'libx264', '-crf', hq ? '14' : small || titleDir ? '20' : '18', ...maxrate, '-preset', 'slow', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '256k', '-movflags', '+faststart'];
 if (!hasSys) {
   ff(['-f', 'concat', '-safe', '0', '-i', list, '-i', audio, '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '256k', '-shortest', '-movflags', '+faststart', outFile]);
 } else if (false) {
