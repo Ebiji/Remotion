@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {execFileSync} from 'node:child_process';
 const [dir, outFile, ...opts] = process.argv.slice(2);
-if (!dir || !outFile) { console.error('usage: node scripts/finish_video.mjs <chunkDir> <out.mp4> [small] [title=<dir>]'); process.exit(1); }
+if (!dir || !outFile) { console.error('usage: node scripts/finish_video.mjs <chunkDir> <out.mp4> [small] [hq] [title=<dir>]'); process.exit(1); }
 const small = opts.includes('small');
 const titleDir = (opts.find((o) => o.startsWith('title=')) || '').slice(6);
 const meta = JSON.parse(fs.readFileSync('src/MouthMV/analysis.json', 'utf8'));
@@ -21,14 +21,15 @@ const win = process.platform === 'win32';
 const hasSys = (() => { try { execFileSync('ffmpeg', ['-version'], {stdio: 'ignore', shell: win}); return true; } catch { return false; } })();
 const widthOf = (() => { try { return +execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width', '-of', 'csv=p=0', path.resolve(dir, chunks[0])], {shell: win}).toString().trim(); } catch { return 1920; } })();
 // 圧縮の上限ビットレート: 画面が大きいほど高く (4Kは約45Mbps)
-const maxrate = widthOf >= 3000 ? ['-maxrate', '45000k', '-bufsize', '80000k'] : widthOf >= 2400 ? ['-maxrate', '24000k', '-bufsize', '40000k'] : ['-maxrate', '14000k', '-bufsize', '24000k'];
+const hq = opts.includes('hq');                  // hq: ブロックノイズが出ないよう、ビットレートを大きく取る
+const maxrate = hq ? (widthOf >= 3000 ? ['-maxrate', '120000k', '-bufsize', '240000k'] : widthOf >= 2400 ? ['-maxrate', '60000k', '-bufsize', '120000k'] : ['-maxrate', '30000k', '-bufsize', '60000k']) : widthOf >= 3000 ? ['-maxrate', '45000k', '-bufsize', '80000k'] : widthOf >= 2400 ? ['-maxrate', '24000k', '-bufsize', '40000k'] : ['-maxrate', '14000k', '-bufsize', '24000k'];
 const ff = (args) => hasSys
   ? execFileSync('ffmpeg', ['-v', 'error', '-y', ...args], {stdio: 'inherit', shell: win})
   : execFileSync(win ? 'npx.cmd' : 'npx', ['remotion', 'ffmpeg', '-v', 'error', '-y', ...args], {stdio: 'inherit', shell: win});
 if (!hasSys) console.warn('※ ffmpegが見つからないため、フェード・末尾の暗転・タイトルなしで仕上げます (winget install Gyan.FFmpeg で導入できます)');
 const TAIL = 3;                                   // 曲の終わりのあとに足す無音の暗転(秒)
 const fade = `afade=t=in:d=0.5`;                 // 頭だけフェードイン。終わりは音源そのままで最後まで流す
-const enc = ['-c:v', 'libx264', '-crf', small || titleDir ? '20' : '18', ...maxrate, '-preset', 'slow', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '256k', '-movflags', '+faststart'];
+const enc = ['-c:v', 'libx264', '-crf', hq ? '14' : small || titleDir ? '20' : '18', ...maxrate, '-preset', 'slow', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '256k', '-movflags', '+faststart'];
 if (!hasSys) {
   ff(['-f', 'concat', '-safe', '0', '-i', list, '-i', audio, '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '256k', '-shortest', '-movflags', '+faststart', outFile]);
 } else if (false) {
