@@ -24,7 +24,8 @@ const widthSrc = (() => { try { return +execFileSync('ffprobe', ['-v', 'error', 
 const widthOf = scaleOpt ? +scaleOpt.slice(1) : widthSrc;
 // 圧縮の上限ビットレート: 画面が大きいほど高く (4Kは約45Mbps)
 const hq = opts.includes('hq');                  // hq: ブロックノイズが出ないよう、ビットレートを大きく取る
-const maxrate = hq ? (widthOf >= 3000 ? ['-maxrate', '120000k', '-bufsize', '240000k'] : widthOf >= 2400 ? ['-maxrate', '60000k', '-bufsize', '120000k'] : ['-maxrate', '30000k', '-bufsize', '60000k']) : widthOf >= 3000 ? ['-maxrate', '45000k', '-bufsize', '80000k'] : widthOf >= 2400 ? ['-maxrate', '24000k', '-bufsize', '40000k'] : ['-maxrate', '14000k', '-bufsize', '24000k'];
+const mrOpt = opts.find((o) => /^mr\d+$/.test(o));   // 例: mr18000 → 上限ビットレート(kbps)を直接指定
+const maxrate = mrOpt ? ['-maxrate', `${mrOpt.slice(2)}k`, '-bufsize', `${mrOpt.slice(2) * 2}k`] : hq ? (widthOf >= 3000 ? ['-maxrate', '120000k', '-bufsize', '240000k'] : widthOf >= 2400 ? ['-maxrate', '60000k', '-bufsize', '120000k'] : ['-maxrate', '30000k', '-bufsize', '60000k']) : widthOf >= 3000 ? ['-maxrate', '45000k', '-bufsize', '80000k'] : widthOf >= 2400 ? ['-maxrate', '24000k', '-bufsize', '40000k'] : ['-maxrate', '14000k', '-bufsize', '24000k'];
 const ff = (args) => hasSys
   ? execFileSync('ffmpeg', ['-v', 'error', '-y', ...args], {stdio: 'inherit', shell: win})
   : execFileSync(win ? 'npx.cmd' : 'npx', ['remotion', 'ffmpeg', '-v', 'error', '-y', ...args], {stdio: 'inherit', shell: win});
