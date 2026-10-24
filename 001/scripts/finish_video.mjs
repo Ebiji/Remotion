@@ -4,6 +4,7 @@
 // (文字の連番は scripts/render_title.mjs で作る)。ffmpegは通常のもの(フェード等に必要)があればそれを使い、なければ Remotion付属を使う。
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import {execFileSync} from 'node:child_process';
 const [dir, outFile, ...opts] = process.argv.slice(2);
 if (!dir || !outFile) { console.error('usage: node scripts/finish_video.mjs <chunkDir> <out.mp4> [small] [hq] [title=<dir>]'); process.exit(1); }
@@ -37,9 +38,26 @@ const vb = vbOpt ? +vbOpt.slice(2) : 0;
 const enc = opts.includes('hevc') ? ['-c:v', 'libx265', '-preset', 'medium', ...(vb ? ['-b:v', `${vb}k`, '-x265-params', `vbv-maxrate=${Math.round(vb * 1.8)}:vbv-bufsize=${Math.round(vb * 3.5)}:log-level=error`] : ['-crf', '18']), '-tag:v', 'hvc1', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '256k', '-movflags', '+faststart'] : ['-c:v', 'libx264', '-crf', hq ? '14' : small || titleDir ? '20' : '18', ...maxrate, '-preset', 'slow', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '256k', '-movflags', '+faststart'];
 if (!hasSys) {
   ff(['-f', 'concat', '-safe', '0', '-i', list, '-i', audio, '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '256k', '-shortest', '-movflags', '+faststart', outFile]);
-} else if (false) {
-  // 映像は再エンコードせずに結合 (速い)
-  ff(['-f', 'concat', '-safe', '0', '-i', list, '-i', audio, '-map', '0:v', '-map', '1:a', '-af', fade, '-c:v', 'copy', '-c:a', 'aac', '-b:a', '256k', '-shortest', '-movflags', '+faststart', outFile]);
+} else if (opts.includes('std')) {
+  // X/YouTube向けの標準仕様: H.264 High / 30fps固定 / AAC 192k / 色はbt601→bt709に変換して明記 / 2パスで平均ビットレートを指定
+  const total = +(dur + TAIL).toFixed(3);
+  const t0 = (dur - 15).toFixed(3);
+  const W = scaleOpt ? scaleOpt.slice(1) : '1920';
+  const dn = opts.includes('dn') ? ',hqdn3d=1.2:1.2:5:5' : '';   // dn: 細かいノイズを少しだけ減らす(再圧縮でつぶれにくくする)
+  const sc = `scale=${W}:-2:flags=lanczos+accurate_rnd+full_chroma_int`;
+  const base = `[0:v]tpad=stop_mode=clone:stop_duration=${TAIL + 1},trim=duration=${total},setpts=PTS-STARTPTS,${sc}:in_color_matrix=bt601:in_range=pc,format=gbrp${dn}`;
+  const inputs = ['-f', 'concat', '-safe', '0', '-i', list, '-i', audio];
+  let vf = `${base}[o]`;
+  if (titleDir) {
+    inputs.push('-framerate', '30', '-i', path.resolve(titleDir, 'element-%03d.png').replace(/\\/g, '/'));
+    vf = `${base}[b];[2:v]format=rgba,scale=${W}:-2:flags=lanczos,setpts=PTS-STARTPTS+${t0}/TB[t];[b][t]overlay=format=auto:eof_action=pass[o]`;
+  }
+  const outv = `[o]scale=out_color_matrix=bt709:out_range=tv:flags=accurate_rnd+full_chroma_int,format=yuv420p,fps=30[v]`;
+  const rate = vb || 10000;
+  const venc = ['-c:v', 'libx264', '-preset', 'slow', '-profile:v', 'high', '-level', '4.2', '-b:v', `${rate}k`, '-maxrate', `${Math.round(rate * 1.2)}k`, '-bufsize', `${rate * 2}k`, '-pix_fmt', 'yuv420p', '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-color_range', 'tv', '-g', '60', '-fps_mode', 'cfr'];
+  const logf = path.resolve(os.tmpdir(), `x264pass_${Date.now()}`);
+  ff([...inputs, '-filter_complex', `${vf};${outv}`, '-map', '[v]', ...venc, '-pass', '1', '-passlogfile', logf, '-an', '-t', String(total), '-f', 'mp4', win ? 'NUL' : '/dev/null']);
+  ff([...inputs, '-filter_complex', `${vf};${outv};[1:a]${fade},apad=whole_dur=${total}[a]`, '-map', '[v]', '-map', '[a]', ...venc, '-pass', '2', '-passlogfile', logf, '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-t', String(total), '-movflags', '+faststart', outFile]);
 } else {
   const total = +(dur + TAIL).toFixed(3);        // 曲の長さ + 暗転 (Mouth2は約2分34.6秒)
   const base = `[0:v]tpad=stop_mode=clone:stop_duration=${TAIL + 1},trim=duration=${total},setpts=PTS-STARTPTS${scaleOpt ? `,scale=${scaleOpt.slice(1)}:-2:flags=lanczos` : ''}`;
