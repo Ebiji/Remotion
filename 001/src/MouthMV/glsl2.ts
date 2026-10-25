@@ -4,7 +4,7 @@ export const PLANT_VERT = /* glsl */ `
 ${COMMON}
 ${BLDG_VERT}
 attribute vec3 aStart; attribute vec4 aMeta; attribute vec2 aUV; attribute vec4 aWall;
-uniform float uPlant;
+uniform float uPlant, uHop;
 uniform vec4 uBand;      // LOD帯域: 近い端, 遠い端, 手前のフェード幅, 奥のフェード幅
 varying vec3 vW; varying vec3 vN; varying vec4 vM; varying vec2 vUV; varying float vFade;
 void main(){
@@ -49,6 +49,18 @@ void main(){
     anchor = vec3(b.base.x - sd*(aInst.z*0.5 + 0.35), b.h*aWall.y, b.base.z + aWall.z*aInst2.y);
   }
   vec3 w = anchor + p;
+  if (uHop > 0.5 && mode < 2.5) {
+    // 植物が飛び跳ねる: キックごとに半分の株が交互に跳び上がり、伸び縮みして着地する
+    float grp = step(0.5, h11(aInst2.x*3.7 + aWall.y*11.0 + mode));
+    float on = mix(0.3, 1.0, 1.0 - abs(grp - mod(uKickIdx, 2.0)));
+    float ka = clamp(uKickAge/10.0, 0.0, 1.0);
+    float arc = 4.0*ka*(1.0-ka)*step(uKickAge, 10.0);
+    float land = exp(-pow((uKickAge - 10.0)*0.45, 2.0));
+    float hs = mode < 0.5 ? 3.0 : (mode < 1.5 ? 0.9 : 2.2);
+    float st = 0.16*arc - 0.12*land;
+    w = anchor + vec3(p.x*(1.0 - st*0.6), p.y*(1.0 + st), p.z*(1.0 - st*0.6));
+    w.y += arc*hs*on*(0.7 + 0.5*rnd)*(0.6 + 0.6*uInten) + 0.35*uSnare*step(0.7, rnd);
+  }
   vW = w; vN = n; vM = aMeta; vUV = aUV;
   gl_Position = projectionMatrix*viewMatrix*vec4(w,1.0);
 }`;
@@ -150,10 +162,11 @@ void main(){
 }`;
 export const RIBBON_FRAG = /* glsl */ `
 ${COMMON}
+uniform float uRibNear;
 varying float vV; varying float vU; varying float vZ; varying float vP;
 void main(){
   float core = exp(-pow((vU-0.5)*3.2, 2.0));
-  float a = smoothstep(0.12, 0.45, vV)*smoothstep(8.0, 30.0, vZ)*smoothstep(uLen*0.8, uLen*0.4, vZ);
+  float a = smoothstep(0.12, 0.45, vV)*smoothstep(uRibNear, uRibNear + 45.0, vZ)*smoothstep(uLen*0.8, uLen*0.4, vZ);
   vec3 c = rainbow(uHue + vP*0.7 + vZ*0.004)*(0.8 + 1.4*core)*(0.6 + 0.8*uVoxOn + 0.3*uBeat);
   gl_FragColor = vec4(c*a*core, a*core);
 }`;

@@ -7,12 +7,17 @@ import * as A from './audio';
 import {BUILDING_VERT, BUILDING_FRAG, GROUND_VERT, GROUND_FRAG, SKY_VERT, SKY_FRAG} from './glsl';
 import {LAMP_VERT, LAMP_FRAG, RIBBON_VERT, RIBBON_FRAG, PLANT_VERT, PLANT_FRAG, HERO_VERT, HERO_FRAG, HERO_VERT_V1, HERO_FRAG_V1, SUN_VERT, SUN_FRAG, PART_VERT, PART_FRAG, POST_FRAG} from './glsl2';
 import {buildSpecies, mulberry} from './plants';
+import {SIGN_VERT, SIGN_FRAG, LANTERN_VERT, LANTERN_FRAG, TOWER_VERT, TOWER_FRAG} from './glsl3';
+import {tokyoTower, skyTree} from './towers';
 import {mergeGeometries} from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 const IS_V1 = A.SONG === 'mouth1';
+/** 'scat' = v1とv6のいいところどり + 東京の灯り(電波塔・突き出し看板・提灯)と跳ねる植物 */
+const IS_TK = A.SONG === 'scat';
+const V1LOOK = IS_V1 || IS_TK;   // v1の花弁・ネオン看板・光の筋・高いビル
 /** v1の中央の花は小さめ・高い位置 / 新しい版は空いっぱい */
 const HERO_POS = IS_V1 ? new THREE.Vector3(0, 235, -600) : new THREE.Vector3(0, 215, -560);
-const HERO_SCALE = IS_V1 ? 2.1 : 3.6;
+const HERO_SCALE = IS_V1 ? 2.1 : IS_TK ? 3.1 : 3.6;
 
 /** Catmull-Romで滑らかに補間するキーフレーム */
 const curve = (keys: [number, number][], t: number) => {
@@ -56,6 +61,7 @@ export class MVScene {
   spec: number[] = new Array(16).fill(0);
   plantLods: {items: {a: number[]; b: number[]; w: number[]}[]; g: THREE.InstancedBufferGeometry; aInst: THREE.InstancedBufferAttribute; aInst2: THREE.InstancedBufferAttribute; aWall: THREE.InstancedBufferAttribute; lo: number; hi: number}[] = [];
   W: number; H: number; timing = false;
+  tk: Record<string, THREE.Object3D[]> = {signs: [], lanterns: [], towers: []};
 
   constructor(canvas: HTMLCanvasElement, W: number, H: number, hide = '') {
     this.W = W; this.H = H;
@@ -67,7 +73,7 @@ export class MVScene {
     this.U = {
       uTime: {value: 0}, uTravel: {value: 0}, uLen: {value: A.LEN}, uKick: {value: 0}, uSnare: {value: 0}, uHat: {value: 0},
       uBass: {value: 0}, uMid: {value: 0}, uInten: {value: 0}, uHue: {value: 0}, uBeat: {value: 0}, uKickAge: {value: 99},
-      uBeatPos: {value: 0}, uKickIdx: {value: 0}, uBend: {value: 0}, uRoadAmp: {value: IS_V1 ? 0 : 1}, uExtras: {value: IS_V1 ? 1 : 0}, uMand: {value: new THREE.Vector2(IS_V1 ? 0.55 : 0.2, IS_V1 ? 0.5 : 0.2)}, uVox: {value: 0}, uVoxOn: {value: 0}, uPitch: {value: 0}, uSpec: {value: this.spec}, uPlant: {value: 0},
+      uBeatPos: {value: 0}, uKickIdx: {value: 0}, uBend: {value: 0}, uRoadAmp: {value: IS_V1 ? 0 : 1}, uExtras: {value: V1LOOK ? 1 : 0}, uMand: {value: IS_V1 ? new THREE.Vector2(0.55, 0.5) : IS_TK ? new THREE.Vector2(0.4, 0.35) : new THREE.Vector2(0.2, 0.2)}, uHop: {value: IS_TK ? 1 : 0}, uVox: {value: 0}, uVoxOn: {value: 0}, uPitch: {value: 0}, uSpec: {value: this.spec}, uPlant: {value: 0},
     };
     const U = this.U;
     const mk = (vs: string, fs: string, extra: any = {}, params: THREE.ShaderMaterialParameters = {}) =>
@@ -90,7 +96,7 @@ export class MVScene {
     const SLOTS = 16, LANES = 5, pitch = A.LEN / SLOTS;
     type Inst = {a: number[]; b: number[]; sp: number; w: number[]};
     const insts: Inst[] = [];
-    const HMAX = IS_V1 ? [[14, 14], [28, 28], [45, 40], [60, 50], [80, 70]] : [[12, 14], [20, 20], [30, 28], [40, 34], [50, 42]];
+    const HMAX = V1LOOK ? [[14, 14], [28, 28], [45, 40], [60, 50], [80, 70]] : [[12, 14], [20, 20], [30, 28], [40, 34], [50, 42]];
     const STREET = 24;
     for (const side of [-1, 1]) for (let l = 0; l < LANES; l++) for (let s = 0; s < SLOTS; s++) {
       const w = 11 + R() * 6, d = 12 + R() * 5;
@@ -185,9 +191,51 @@ export class MVScene {
       const tex = new THREE.DataTexture(A.melodyTex, A.MELODY_W, 1, THREE.RGFormat, THREE.FloatType);
       tex.minFilter = tex.magFilter = THREE.NearestFilter; tex.needsUpdate = true;
       const rg = new THREE.PlaneGeometry(1, 1, 2, 200);
-      const rm = mk(RIBBON_VERT, RIBBON_FRAG, {uMelody: {value: tex}, uMelodyW: {value: A.MELODY_W}}, {transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide});
+      const rm = mk(RIBBON_VERT, RIBBON_FRAG, {uMelody: {value: tex}, uMelodyW: {value: A.MELODY_W}, uRibNear: {value: IS_TK ? 40 : 8}}, {transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide});
       const ribbon = new THREE.Mesh(rg, rm); ribbon.frustumCulled = false;
-      this.scene.add(ribbon);
+      this.scene.add(ribbon); this.tk.ribbon = [ribbon];
+    }
+
+    // ---- 東京の灯り: 突き出しネオン看板 / 通りの提灯 / 遠景の電波塔 ----
+    if (IS_TK) {
+      const sg = new THREE.InstancedBufferGeometry();
+      const sp = new THREE.PlaneGeometry(1, 1, 1, 1);
+      sg.index = sp.index;
+      for (const k of Object.keys(sp.attributes)) sg.setAttribute(k, sp.attributes[k]);
+      const signs = insts.filter((b) => b.b[3] <= 1).flatMap((b) => {
+        const out: {a: number[]; b: number[]; s: number[]; s2: number[]}[] = [];
+        const n = R() < 0.75 ? (R() < 0.35 ? 2 : 1) : 0;
+        for (let k = 0; k < n; k++) out.push({a: b.a, b: b.b, s: [(R() - 0.5) * b.b[1] * 0.8, 4 + R() * 7, 9 + R() * 16, 2.2 + R() * 1.4], s2: [R(), R(), 0, 0]});
+        return out;
+      });
+      sg.setAttribute('aInst', new THREE.InstancedBufferAttribute(new Float32Array(signs.flatMap((i) => i.a)), 4));
+      sg.setAttribute('aInst2', new THREE.InstancedBufferAttribute(new Float32Array(signs.flatMap((i) => i.b)), 4));
+      sg.setAttribute('aSign', new THREE.InstancedBufferAttribute(new Float32Array(signs.flatMap((i) => i.s)), 4));
+      sg.setAttribute('aSign2', new THREE.InstancedBufferAttribute(new Float32Array(signs.flatMap((i) => i.s2)), 4));
+      sg.instanceCount = signs.length;
+      const sm = new THREE.Mesh(sg, mk(SIGN_VERT, SIGN_FRAG, {}, {side: THREE.DoubleSide})); sm.frustumCulled = false;
+      this.scene.add(sm); this.tk.signs.push(sm);
+
+      const lg = new THREE.SphereGeometry(1, 12, 8);
+      const lig = new THREE.InstancedBufferGeometry();
+      lig.index = lg.index;
+      for (const k of Object.keys(lg.attributes)) lig.setAttribute(k, lg.attributes[k]);
+      const la: number[] = [], lb: number[] = [];
+      for (let s = 0; s < SLOTS; s += 2) {
+        const z0 = s * pitch + 14 + R() * 4, yTop = 10 + R() * 4, sag = 2 + R() * 1.5, warm = R() < 0.7 ? 0 : 1, hue = R();
+        const n = 15;
+        for (let i = 0; i < n; i++) { la.push(z0, (i + 0.5) / n, yTop, sag); lb.push(hue + i * 0.06, i + s * 31, 0.9 + R() * 0.25, warm); }
+      }
+      lig.setAttribute('aL', new THREE.InstancedBufferAttribute(new Float32Array(la), 4));
+      lig.setAttribute('aL2', new THREE.InstancedBufferAttribute(new Float32Array(lb), 4));
+      lig.instanceCount = la.length / 4;
+      const lm2 = new THREE.Mesh(lig, mk(LANTERN_VERT, LANTERN_FRAG)); lm2.frustumCulled = false;
+      this.scene.add(lm2); this.tk.lanterns.push(lm2);
+
+      const tm = mk(TOWER_VERT, TOWER_FRAG);
+      for (const tg2 of [tokyoTower(-150, -440, 300), skyTree(175, -480, 430)]) {
+        const t = new THREE.Mesh(tg2, tm); t.frustumCulled = false; this.scene.add(t); this.tk.towers.push(t);
+      }
     }
 
     // ---- 巨大曼荼羅花 ----
@@ -198,21 +246,21 @@ export class MVScene {
       g.setAttribute('position', base.attributes.position); g.setAttribute('uv', base.attributes.uv); g.setAttribute('normal', base.attributes.normal);
       g.setAttribute('aN', new THREE.InstancedBufferAttribute(Float32Array.from({length: total}, (_, i) => i), 1));
       g.instanceCount = total;
-      const mat = mk(IS_V1 ? HERO_VERT_V1 : HERO_VERT, IS_V1 ? HERO_FRAG_V1 : HERO_FRAG, {uBloom: {value: 0}, uSpin: {value: 0}, uTotal: {value: total}, uHueOff: {value: hueOff}}, {side: THREE.DoubleSide});
+      const mat = mk(V1LOOK ? HERO_VERT_V1 : HERO_VERT, V1LOOK ? HERO_FRAG_V1 : HERO_FRAG, {uBloom: {value: 0}, uSpin: {value: 0}, uTotal: {value: total}, uHueOff: {value: hueOff}}, {side: THREE.DoubleSide});
       const mesh = new THREE.Mesh(g, mat); mesh.frustumCulled = false;
       this.heroGroup.add(mesh);
       this.heroes.push({mat, mesh, spin: spinSign, hueOff});
       return mesh;
     };
-    const m1 = makePetals(IS_V1 ? 610 : 233, 1, 0);
-    const m2 = makePetals(IS_V1 ? 233 : 89, -1, 0.5); m2.scale.setScalar(0.5); m2.position.z = 14;
-    const m3 = makePetals(IS_V1 ? 89 : 34, 1, 0.25); m3.scale.setScalar(0.22); m3.position.z = 26;
+    const m1 = makePetals(V1LOOK ? 610 : 233, 1, 0);
+    const m2 = makePetals(V1LOOK ? 233 : 89, -1, 0.5); m2.scale.setScalar(0.5); m2.position.z = 14;
+    const m3 = makePetals(V1LOOK ? 89 : 34, 1, 0.25); m3.scale.setScalar(0.22); m3.position.z = 26;
     this.heroGroup.position.copy(HERO_POS);
     this.heroGroup.scale.setScalar(HERO_SCALE);
     this.scene.add(this.heroGroup);
     const sunMat = mk(SUN_VERT, SUN_FRAG, {}, {transparent: true, blending: THREE.AdditiveBlending, depthWrite: false});
     this.sun = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), sunMat); this.sun.frustumCulled = false;
-    this.sun.position.z = 34; this.sun.scale.setScalar(IS_V1 ? 60 : 45);
+    this.sun.position.z = 34; this.sun.scale.setScalar(IS_V1 ? 60 : IS_TK ? 52 : 45);
     this.heroGroup.add(this.sun);
 
     // ---- 花粉 / 胞子 ----
@@ -245,6 +293,7 @@ export class MVScene {
     this.sun.visible = !hs.has('sun'); this.heroGroup.visible = !hs.has('hero');
     this.scene.children.forEach((c) => { if ((c as any).geometry?.attributes?.aStart) c.visible = !hs.has('plants'); });
     this.bloom.enabled = !hs.has('bloom');
+    for (const k of Object.keys(this.tk)) this.tk[k].forEach((o) => { o.visible = !hs.has(k); });
   }
 
   frame(f: number) {

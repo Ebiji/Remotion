@@ -12,7 +12,8 @@ const small = opts.includes('small');
 const titleDir = (opts.find((o) => o.startsWith('title=')) || '').slice(6);
 const meta = JSON.parse(fs.readFileSync('src/MouthMV/analysis.json', 'utf8'));
 const song = meta.song ?? 'mouth2';
-const audio = path.resolve(`public/${song === 'mouth1' ? 'mouth1_mastered' : 'mouth2_mastered'}.mp3`);
+const audio = path.resolve(`public/${song}_mastered.mp3`);   // public/<曲>_mastered.mp3
+const tstartOpt = opts.find((o) => o.startsWith('tstart='));     // 例: tstart=3 → 題名を3秒から出す(既定は曲の最後の15秒)
 const chunks = fs.readdirSync(dir).filter((f) => /^chunk_\d+\.mp4$/.test(f)).sort();
 if (!chunks.length) { console.error('チャンクが見つかりません'); process.exit(1); }
 const list = path.resolve(dir, 'list.txt');
@@ -41,7 +42,7 @@ if (!hasSys) {
 } else if (opts.includes('std')) {
   // X/YouTube向けの標準仕様: H.264 High / 30fps固定 / AAC 192k / 色はbt601→bt709に変換して明記 / 2パスで平均ビットレートを指定
   const total = +(dur + TAIL).toFixed(3);
-  const t0 = (dur - 15).toFixed(3);
+  const t0 = tstartOpt ? (+tstartOpt.slice(7)).toFixed(3) : (dur - 15).toFixed(3);
   const W = scaleOpt ? scaleOpt.slice(1) : '1920';
   const dn = opts.includes('dn') ? ',hqdn3d=1.2:1.2:5:5' : '';   // dn: 細かいノイズを少しだけ減らす(再圧縮でつぶれにくくする)
   const sc = `scale=${W}:-2:flags=lanczos+accurate_rnd+full_chroma_int`;
@@ -61,7 +62,7 @@ if (!hasSys) {
 } else {
   const total = +(dur + TAIL).toFixed(3);        // 曲の長さ + 暗転 (Mouth2は約2分34.6秒)
   const base = `[0:v]tpad=stop_mode=clone:stop_duration=${TAIL + 1},trim=duration=${total},setpts=PTS-STARTPTS${scaleOpt ? `,scale=${scaleOpt.slice(1)}:-2:flags=lanczos` : ''}`;
-  const t0 = (dur - 15).toFixed(3);          // 曲の最後の15秒
+  const t0 = tstartOpt ? (+tstartOpt.slice(7)).toFixed(3) : (dur - 15).toFixed(3);          // 曲の最後の15秒
   const inputs = ['-f', 'concat', '-safe', '0', '-i', list, '-i', audio];
   let vf = `${base}[v]`;
   if (titleDir) {

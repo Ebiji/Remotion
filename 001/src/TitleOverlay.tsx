@@ -15,7 +15,7 @@ const FONTS: [string, string, string, string][] = [
 ];
 
 /** 透明背景の題名。縦三段組(Flowers / & / Towers)。ゆっくり現れ、動きは揺らさず、最後にやわらかく消える。 */
-export const TitleOverlay: React.FC<{text?: string}> = () => {
+export const TitleOverlay: React.FC<{text?: string; dur?: number}> = ({dur = TITLE_DURATION}) => {
   const frame = useCurrentFrame();
   const {height, width} = useVideoConfig();
   const [handle] = useState(() => delayRender('font'));
@@ -25,14 +25,14 @@ export const TitleOverlay: React.FC<{text?: string}> = () => {
   }, [handle]);
 
   const size = height * 0.17;
-  const out = 1 - ease((frame - 408) / 36);                       // 最後の1.2秒でやわらかく消える
+  const out = 1 - ease((frame - (dur - 42)) / 36);                 // 最後の1.2秒でやわらかく消える
   const veil = ease((frame - 4) / 40) * out;
 
   const pF = ease((frame - 14) / 62);                              // Flowers: ぼけからピントが合い、字間がふわっと広がる
   const pA = ease((frame - 70) / 34);                              // &
   const pT = ease((frame - 96) / 62);                              // Towers: 下から立ち上がる
 
-  const glow = (c: string, a: number) => `0 0 ${size * 0.14}px ${c}, 0 0 ${size * 0.5}px rgba(${a}, 0.45)`;
+  const glow = (c: string, a: string) => `0 0 ${size * 0.14}px ${c}, 0 0 ${size * 0.5}px rgba(${a}, 0.45)`;
   const base: React.CSSProperties = {fontFamily: 'CormorantGaramond, "Times New Roman", serif', lineHeight: 1, textAlign: 'center', whiteSpace: 'nowrap'};
 
   return (

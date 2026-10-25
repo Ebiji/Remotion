@@ -5,7 +5,7 @@ import {FRAMES, SONG} from './audio';
 
 export const MOUTH_DURATION = FRAMES;
 
-export const MouthMV: React.FC<{withAudio?: boolean; hide?: string; audioFile?: string}> = ({withAudio = true, hide = '', audioFile = SONG === 'mouth1' ? 'mouth1_mastered.mp3' : 'mouth2_mastered.mp3'}) => {
+export const MouthMV: React.FC<{withAudio?: boolean; hide?: string; audioFile?: string}> = ({withAudio = true, hide = '', audioFile = `${SONG}_mastered.mp3`}) => {
   const frame = useCurrentFrame();
   const {width, height, fps} = useVideoConfig();
   const canvasRef = useRef<HTMLCanvasElement>(null);
