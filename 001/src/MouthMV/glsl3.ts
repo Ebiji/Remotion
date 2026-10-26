@@ -1,6 +1,6 @@
 import {COMMON, BLDG_VERT} from './glsl';
 
-/** 東京の街の灯り: ビルの壁から通りへ突き出す縦型のネオン看板。字は抽象的な記号(読める文字にはしない) */
+/** 東京の街の灯り: ビルの壁から通りへ突き出す縦型のネオン看板。文字・記号は入れず、ネオン管の枠と内側の発光だけ */
 export const SIGN_VERT = /* glsl */ `
 ${COMMON}
 ${BLDG_VERT}
@@ -23,7 +23,6 @@ void main(){
 export const SIGN_FRAG = /* glsl */ `
 ${COMMON}
 varying vec2 vUV; varying vec2 vSz; varying vec4 vS; varying vec3 vW;
-float seg(vec2 p, vec2 a, vec2 b){ vec2 pa=p-a, ba=b-a; float h=clamp(dot(pa,ba)/dot(ba,ba),0.0,1.0); return length(pa-ba*h); }
 void main(){
   vec3 V = cameraPosition - vW; float dist = length(V);
   vec2 px = vUV*vSz;
@@ -31,33 +30,12 @@ void main(){
   float tube = exp(-pow((border-0.16)/0.06, 2.0));
   vec3 nc = rainbow(vS.x + uHue*0.35);
   vec3 col = vec3(0.02,0.012,0.04) + nc*0.05;
-  // 記号の列(上から): 横画・縦画・斜め・枠を種から組み立てる
-  float cw = vSz.x*0.74;
-  float n = floor((vSz.y - vSz.x*0.26)/cw);
-  vec2 g = vec2((px.x - vSz.x*0.13)/cw, (vSz.y - px.y - vSz.x*0.13)/cw);
-  float ci = floor(g.y);
-  float s = 1e3;
-  if (g.x > 0.0 && g.x < 1.0 && ci >= 0.0 && ci < n) {
-    vec2 q = fract(g);
-    float sd = vS.y*91.7 + ci*13.37;
-    // 漢字のような記号: 横画2〜4本・縦画1〜2本、口(枠)や払いを足す。単独の斜線だけの形(ラテン文字に見える)は作らない
-    int nh = 0;
-    for (int r = 0; r < 4; r++) {
-      float y = 0.14 + 0.24*float(r);
-      if (h11(sd + float(r)*7.1) > 0.38 || (r == 1 && nh == 0)) { nh++; float a = 0.10 + 0.22*h11(sd+float(r)*3.3), bb = 0.90 - 0.22*h11(sd+float(r)*5.9); s = min(s, seg(q, vec2(a,y), vec2(bb,y))); }
-    }
-    float vx = 0.3 + 0.4*h11(sd + 17.0);
-    s = min(s, seg(q, vec2(vx, 0.08), vec2(vx, 0.92)));
-    if (h11(sd + 31.0) > 0.45) { float x2 = vx > 0.5 ? 0.18 : 0.82; s = min(s, seg(q, vec2(x2, 0.3), vec2(x2, 0.86))); }
-    if (h11(sd + 53.0) > 0.55) s = min(s, abs(max(abs(q.x-0.5)*1.25, abs(q.y-0.62)*1.6) - 0.28));   // 口
-    if (h11(sd + 71.0) > 0.6) { s = min(s, seg(q, vec2(vx, 0.55), vec2(0.12, 0.9))); s = min(s, seg(q, vec2(vx, 0.55), vec2(0.88, 0.9))); }   // 払い
-    s = min(s, seg(q, vec2(0.86, 0.12), vec2(0.86, 0.12)) + 1.0);
-    float lit = 0.55 + 0.45*step(0.45, fract(uBeatPos*0.5 + ci*0.19 + vS.y*3.0)) + 0.7*uKick + 0.4*uVoxOn;
-    lit *= step(h11(floor(uTime*14.0) + vS.y*57.0 + ci), 0.985);      // ネオン管のまたたき
-    float stroke = smoothstep(0.075, 0.035, s);
-    float halo = exp(-s*9.0)*0.35;
-    col += mix(nc, vec3(1.0), 0.45)*stroke*lit*1.5 + nc*halo*lit;
-  }
+  // 文字・記号は描かない(ユーザー指示)。板の内側はやわらかい発光だけ
+  vec2 c = (px - vSz*0.5)/(vSz*0.5);
+  float inner = smoothstep(1.05, 0.2, max(abs(c.x), abs(c.y)*0.9));
+  float lit = 0.55 + 0.45*step(0.45, fract(uBeatPos*0.5 + vS.y*3.0)) + 0.7*uKick + 0.4*uVoxOn;
+  lit *= step(h11(floor(uTime*14.0) + vS.y*57.0), 0.985);      // ネオン管のまたたき
+  col += mix(nc, vec3(1.0), 0.25)*inner*lit*0.32;
   col += nc*tube*(1.1 + 0.6*uBeat + 0.9*uKick);
   float fg = 1.0-exp(-dist*0.0032);
   vec3 fogC = rainbow(uHue+0.55+dist*0.0006)*(0.08+0.10*uInten) + vec3(0.015,0.0,0.055);
