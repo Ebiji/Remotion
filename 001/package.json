@@ -8,15 +8,23 @@
     "render:quantum169": "remotion render src/index.ts QuantumMorph169 out/quantum-morph-16x9.mp4 --crf=24",
     "render:quantum": "remotion render src/index.ts QuantumMorph out/quantum-morph.mp4",
     "render:chain": "remotion render src/index.ts MorphChain out/morph-chain.mp4",
-    "render:morph": "remotion render src/index.ts SingleImageMorph out/single-image-morph.mp4"
+    "render:morph": "remotion render src/index.ts SingleImageMorph out/single-image-morph.mp4",
+    "render:mouth": "node scripts/render_chunks.mjs",
+    "analyze:mouth": "python3 scripts/analyze_audio.py",
+    "song:mouth1": "node scripts/use_song.mjs mouth1",
+    "song:mouth2": "node scripts/use_song.mjs mouth2",
+    "bench": "node scripts/bench.mjs"
   },
   "dependencies": {
     "@remotion/cli": "4.0.250",
+    "@types/three": "^0.169.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "remotion": "4.0.250"
+    "remotion": "4.0.250",
+    "three": "^0.169.0"
   },
   "devDependencies": {
+    "@fontsource/cormorant-garamond": "^5.3.0",
     "@types/react": "18.3.3",
     "typescript": "5.5.4"
   }
