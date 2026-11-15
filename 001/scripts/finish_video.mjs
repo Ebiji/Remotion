@@ -32,7 +32,9 @@ const ff = (args) => hasSys
   ? execFileSync('ffmpeg', ['-v', 'error', '-y', ...args], {stdio: 'inherit', shell: win})
   : execFileSync(win ? 'npx.cmd' : 'npx', ['remotion', 'ffmpeg', '-v', 'error', '-y', ...args], {stdio: 'inherit', shell: win});
 if (!hasSys) console.warn('※ ffmpegが見つからないため、フェード・末尾の暗転・タイトルなしで仕上げます (winget install Gyan.FFmpeg で導入できます)');
-const TAIL = 3;                                   // 曲の終わりのあとに足す無音の暗転(秒)
+const tailOpt = opts.find((o) => o.startsWith('tail='));   // 例: tail=1 → 曲のあとの無音を1秒に
+// 曲の終わりのあとに足す無音(秒)。'snow' は1秒で、その間に画面がフェードアウトする(描画側で暗転済み)
+const TAIL = tailOpt ? +tailOpt.slice(5) : song === 'snow' ? 1 : 3;
 const fade = `afade=t=in:d=0.5`;                 // 頭だけフェードイン。終わりは音源そのままで最後まで流す
 const vbOpt = opts.find((o) => /^vb\d+$/.test(o));       // 例: vb23000 → H.265で平均ビットレートkbpsを指定(容量を揃えたいとき)
 const vb = vbOpt ? +vbOpt.slice(2) : 0;

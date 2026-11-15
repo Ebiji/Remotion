@@ -107,6 +107,11 @@ void main(){
     float flow = 0.5+0.5*sin(vUV.y*30.0 - uTime*6.0 + vM.z*20.0);
     col += rainbow(hue+0.2)*flow*0.07*(0.3+uInten) + rainbow(hue+0.35)*uVoxOn*0.1*flow;
   }
+  if (uSnow > 0.001 && kind < 1.5) {      // 葉や枝の上面に積もる雪
+    float up = smoothstep(0.15, 0.7, N.y);
+    float pt = h21(floor(vW.xz*2.0 + vW.y));
+    col = mix(col, vec3(0.58,0.68,0.88)*(0.75+0.25*pt) + rainbow(hue)*0.05, clamp(uSnow*up*(0.7+0.4*pt), 0.0, 0.85));
+  }
   float fg = 1.0-exp(-dist*0.0046);
   vec3 fogC = rainbow(uHue+0.55+dist*0.0006)*(0.08+0.10*uInten) + vec3(0.015,0.0,0.055);
   col = mix(col, fogC, fg);

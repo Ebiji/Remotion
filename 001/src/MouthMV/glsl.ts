@@ -1,6 +1,6 @@
 /** 共有GLSL: ユニフォーム・ノイズ・虹パレット・ビルの挙動(ビルと植物で同一計算) */
 export const COMMON = /* glsl */ `
-uniform float uTime, uTravel, uLen, uKick, uSnare, uHat, uBass, uMid, uInten, uHue, uBeat, uKickAge, uBeatPos, uKickIdx, uBend, uVox, uVoxOn, uPitch, uRoadAmp, uExtras;
+uniform float uTime, uTravel, uLen, uKick, uSnare, uHat, uBass, uMid, uInten, uHue, uBeat, uKickAge, uBeatPos, uKickIdx, uBend, uVox, uVoxOn, uPitch, uRoadAmp, uExtras, uSnow;
 uniform vec2 uMand;
 uniform float uSpec[16];
 float h11(float p){p=fract(p*.1031);p*=p+33.33;p*=p+p;return fract(p);}
@@ -76,6 +76,11 @@ void main(){
     edgeGlow = exp(-ew*2.2);
     float grid = smoothstep(0.06,0.0,abs(fract(ew*0.35)-0.5)-0.44);
     col += rainbow(id*0.31+uHue+ew*0.05)*(edgeGlow*0.5 + grid*0.05*(0.4+uInten))*smoothstep(260.0,60.0,dist);
+    if (uSnow > 0.001) {   // 屋上に積もる雪 (縁のネオンは雪越しに少し残る)
+      float nn = h21(floor(vW.xz*1.5)) * 0.15;
+      vec3 sc = vec3(0.56,0.66,0.86)*(0.8+nn) + rainbow(uHue+id*0.2)*0.06;
+      col = mix(col, sc, clamp(uSnow*1.1, 0.0, 0.9)) + rainbow(id*0.31+uHue)*edgeGlow*0.25*uSnow;
+    }
   } else if (abs(N.y) < 0.5) {
     float faceW = abs(N.x) > 0.5 ? vS.y : vS.x;
     float u = ((abs(N.x) > 0.5 ? vP.z*sign(N.x) : -vP.x*sign(N.z)) + 0.5) * faceW;
@@ -100,6 +105,9 @@ void main(){
     col += rainbow(id*0.3+uHue+0.2)*frameM*0.26*ao*smoothstep(240.0,30.0,dist);
     col += vec3(0.5,0.6,0.95)*sill*0.14*ao*smoothstep(160.0,20.0,dist);
     col *= 1.0 - 0.45*slab;
+    // 窓の敷居と床スラブの上に積もる雪
+    float ledge = smoothstep(0.05,0.0,abs(f.y-0.14)-0.02) + smoothstep(0.035,0.0,abs(f.y-0.015));
+    col = mix(col, vec3(0.55,0.65,0.85)*(0.6+0.4*ao), clamp(uSnow*ledge*smoothstep(200.0,20.0,dist), 0.0, 0.8));
     col *= 0.85 + 0.15*grime;
     float wave = 0.5+0.5*sin(cell.y*0.42 - uTime*2.4 + id*2.0 + cell.x*0.7);
     float lit = step(0.40 - 0.22*uInten, r*0.9 + wave*0.35 - 0.1);
@@ -176,6 +184,21 @@ void main(){
   float gx = smoothstep(0.05,0.0,abs(fract(x/10.0)-0.5)-0.46);
   float gz = smoothstep(0.05,0.0,abs(fract(z/10.0)-0.5)-0.46);
   col += rainbow(uHue+z*0.002)*max(gx,gz)*0.12;
+  // 積もる雪: 歩道と路肩から白くなり、車道は轍(わだち)を残す。ネオンの線は雪越しに透ける
+  if (uSnow > 0.001) {
+    vec2 sp = vec2(x, z);
+    float n1 = h21(floor(sp*0.35)); float n2 = h21(floor(sp*0.35)+vec2(1.0,0.0)); float n3 = h21(floor(sp*0.35)+vec2(0.0,1.0)); float n4 = h21(floor(sp*0.35)+vec2(1.0,1.0));
+    vec2 ff = fract(sp*0.35); ff = ff*ff*(3.0-2.0*ff);
+    float nz = mix(mix(n1,n2,ff.x), mix(n3,n4,ff.x), ff.y);
+    float sideM = smoothstep(9.0, 15.5, abs(x));
+    float track = exp(-pow((abs(abs(x)-3.2)-0.0)*0.9, 2.0)) + exp(-pow((abs(abs(x)-9.6))*0.9, 2.0));
+    float cover = clamp((uSnow*(0.75 + 0.55*sideM) - 0.25 + nz*0.5)*1.6, 0.0, 1.0)*(1.0 - 0.75*track*(1.0-sideM));
+    vec3 sc = vec3(0.42,0.52,0.80)*(0.78 + 0.22*nz) + rainbow(uHue + z*0.003 + nz*0.3)*0.08;
+    float lit = lane*0.9 + bars*0.4 + curb;
+    col = mix(col, sc + lc*lit*0.25*(0.55+0.8*uInten), cover*0.92);
+    vec2 gq = sp*9.0; float gr = h21(floor(gq));
+    col += vec3(0.9,0.95,1.0)*step(0.993, gr)*smoothstep(0.4,0.0,length(fract(gq)-0.5))*(0.5+0.5*sin(uTime*7.0+gr*50.0))*cover*smoothstep(90.0,10.0,dist);
+  }
   // キックの衝撃波リップル
   float rr = uKickAge*5.5;
   float d2 = length(vec2(x, vW.z - 0.0));

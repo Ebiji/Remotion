@@ -10,14 +10,19 @@ import {buildSpecies, mulberry} from './plants';
 import {SIGN_VERT, SIGN_FRAG, LANTERN_VERT, LANTERN_FRAG, TOWER_VERT, TOWER_FRAG} from './glsl3';
 import {tokyoTower, skyTree} from './towers';
 import {mergeGeometries} from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import {FLAKE_VERT, FLAKE_FRAG, SNOW_VERT, SNOW_FRAG, MAN_VERT, MAN_FRAG} from './glsl4';
+import {snowmanGeometry} from './snowman';
 
 const IS_V1 = A.SONG === 'mouth1';
 /** 'scat' = v1とv6のいいところどり + 東京の灯り(電波塔・突き出し看板・提灯)と跳ねる植物 */
 const IS_TK = A.SONG === 'scat';
-const V1LOOK = IS_V1 || IS_TK;   // v1の花弁・ネオン看板・光の筋・高いビル
+/** 'snow' = scatの東京の街のまま、中央は雪の結晶。雪が降って積もり、雪だるまになって踊り、溶ける */
+const IS_SN = A.SONG === 'snow';
+const TKLIKE = IS_TK || IS_SN;   // 東京の灯り・跳ねる植物
+const V1LOOK = IS_V1 || TKLIKE;   // v1の花弁・ネオン看板・光の筋・高いビル
 /** v1の中央の花は小さめ・高い位置 / 新しい版は空いっぱい */
 const HERO_POS = IS_V1 ? new THREE.Vector3(0, 235, -600) : new THREE.Vector3(0, 215, -560);
-const HERO_SCALE = IS_V1 ? 2.1 : IS_TK ? 3.1 : 3.6;
+const HERO_SCALE = IS_V1 ? 2.1 : TKLIKE ? 3.1 : 3.6;
 
 /** Catmull-Romで滑らかに補間するキーフレーム */
 const curve = (keys: [number, number][], t: number) => {
@@ -43,7 +48,14 @@ const CAM_Y_V1: [number, number][] = [[0, 3.4], [14, 4.2], [24, 7], [48, 12], [6
 const L = A.LEN;
 const ROAD_AMP = IS_V1 ? 0 : 1; // v1 は直線の道
 const roadR = (w: number) => ROAD_AMP * (34 * Math.sin(6.2832 * w / L) + 12 * Math.sin(12.5664 * w / L + 1.3));
-const cumKick = (() => { const o = new Float32Array(A.FRAMES + 2); let s = 0; for (let f = 0; f < o.length; f++) { s += A.kick[f]; o[f] = s; } return o; })();
+const cumKick = (() => { const o = new Float32Array(A.kick.length); let s = 0; for (let f = 0; f < o.length; f++) { s += A.kick[f]; o[f] = s; } return o; })();
+
+// 'snow' の雪の進行 (秒, 値): 降る量 / 積もった量 / 雪だるまの出来上がり / 溶け具合
+// 2巡: 降って積もる → 雪だるまが出来て踊る → 64秒〜溶ける → 70秒の大サビで吹雪と共に作り直し → 81秒〜最後の雪解け
+const SN_FALL: [number, number][] = [[0, 0.18], [3, 0.4], [15, 0.62], [25, 0.72], [30, 0.55], [40, 0.75], [63, 0.72], [67, 0.4], [70, 1.0], [80, 1.0], [84, 0.55], [92, 0.3]];
+const SN_COVER: [number, number][] = [[0, 0], [4, 0.04], [25, 0.62], [40, 0.88], [63, 0.92], [69, 0.32], [71, 0.45], [79, 0.92], [82, 0.85], [91, 0.2]];
+const snMan = (t: number) => (t < 69.5 ? sstep(24, 36, t) : sstep(70, 75, t));
+const snMelt = (t: number) => (t < 69.5 ? sstep(63, 69, t) : sstep(81, 89, t));
 
 export class MVScene {
   renderer: THREE.WebGLRenderer;
@@ -61,7 +73,8 @@ export class MVScene {
   spec: number[] = new Array(16).fill(0);
   plantLods: {items: {a: number[]; b: number[]; w: number[]}[]; g: THREE.InstancedBufferGeometry; aInst: THREE.InstancedBufferAttribute; aInst2: THREE.InstancedBufferAttribute; aWall: THREE.InstancedBufferAttribute; lo: number; hi: number}[] = [];
   W: number; H: number; timing = false;
-  tk: Record<string, THREE.Object3D[]> = {signs: [], lanterns: [], towers: []};
+  tk: Record<string, THREE.Object3D[]> = {signs: [], lanterns: [], towers: [], snow: [], men: [], flake: []};
+  flakes: {mat: THREE.ShaderMaterial; spin: number; grow: number}[] = [];
 
   constructor(canvas: HTMLCanvasElement, W: number, H: number, hide = '') {
     this.W = W; this.H = H;
@@ -73,7 +86,7 @@ export class MVScene {
     this.U = {
       uTime: {value: 0}, uTravel: {value: 0}, uLen: {value: A.LEN}, uKick: {value: 0}, uSnare: {value: 0}, uHat: {value: 0},
       uBass: {value: 0}, uMid: {value: 0}, uInten: {value: 0}, uHue: {value: 0}, uBeat: {value: 0}, uKickAge: {value: 99},
-      uBeatPos: {value: 0}, uKickIdx: {value: 0}, uBend: {value: 0}, uRoadAmp: {value: IS_V1 ? 0 : 1}, uExtras: {value: V1LOOK ? 1 : 0}, uMand: {value: IS_V1 ? new THREE.Vector2(0.55, 0.5) : IS_TK ? new THREE.Vector2(0.4, 0.35) : new THREE.Vector2(0.2, 0.2)}, uHop: {value: IS_TK ? 1 : 0}, uVox: {value: 0}, uVoxOn: {value: 0}, uPitch: {value: 0}, uSpec: {value: this.spec}, uPlant: {value: 0},
+      uBeatPos: {value: 0}, uKickIdx: {value: 0}, uBend: {value: 0}, uRoadAmp: {value: IS_V1 ? 0 : 1}, uExtras: {value: V1LOOK ? 1 : 0}, uMand: {value: IS_V1 ? new THREE.Vector2(0.55, 0.5) : TKLIKE ? new THREE.Vector2(0.4, 0.35) : new THREE.Vector2(0.2, 0.2)}, uHop: {value: TKLIKE ? 1 : 0}, uSnow: {value: 0}, uFall: {value: 0}, uMan: {value: 0}, uMelt: {value: 0}, uVox: {value: 0}, uVoxOn: {value: 0}, uPitch: {value: 0}, uSpec: {value: this.spec}, uPlant: {value: 0},
     };
     const U = this.U;
     const mk = (vs: string, fs: string, extra: any = {}, params: THREE.ShaderMaterialParameters = {}) =>
@@ -191,13 +204,13 @@ export class MVScene {
       const tex = new THREE.DataTexture(A.melodyTex, A.MELODY_W, 1, THREE.RGFormat, THREE.FloatType);
       tex.minFilter = tex.magFilter = THREE.NearestFilter; tex.needsUpdate = true;
       const rg = new THREE.PlaneGeometry(1, 1, 2, 200);
-      const rm = mk(RIBBON_VERT, RIBBON_FRAG, {uMelody: {value: tex}, uMelodyW: {value: A.MELODY_W}, uRibNear: {value: IS_TK ? 40 : 8}}, {transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide});
+      const rm = mk(RIBBON_VERT, RIBBON_FRAG, {uMelody: {value: tex}, uMelodyW: {value: A.MELODY_W}, uRibNear: {value: TKLIKE ? 40 : 8}}, {transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide});
       const ribbon = new THREE.Mesh(rg, rm); ribbon.frustumCulled = false;
       this.scene.add(ribbon); this.tk.ribbon = [ribbon];
     }
 
     // ---- 東京の灯り: 突き出しネオン看板 / 通りの提灯 / 遠景の電波塔 ----
-    if (IS_TK) {
+    if (TKLIKE) {
       const sg = new THREE.InstancedBufferGeometry();
       const sp = new THREE.PlaneGeometry(1, 1, 1, 1);
       sg.index = sp.index;
@@ -252,15 +265,25 @@ export class MVScene {
       this.heroes.push({mat, mesh, spin: spinSign, hueOff});
       return mesh;
     };
-    const m1 = makePetals(V1LOOK ? 610 : 233, 1, 0);
-    const m2 = makePetals(V1LOOK ? 233 : 89, -1, 0.5); m2.scale.setScalar(0.5); m2.position.z = 14;
-    const m3 = makePetals(V1LOOK ? 89 : 34, 1, 0.25); m3.scale.setScalar(0.22); m3.position.z = 26;
+    if (IS_SN) {
+      // 中央は雪の結晶: 大・中・小の3枚を重ね、互い違いに回す
+      for (const [sc, z, spin, hueOff, grow] of [[1, 0, 1, 0, 1], [0.52, 14, -1.3, 0.45, 0.92], [0.24, 26, 1.8, 0.2, 0.85]] as number[][]) {
+        const mat = mk(FLAKE_VERT, FLAKE_FRAG, {uGrow: {value: 1}, uSpin: {value: 0}, uHueOff: {value: hueOff}, uDetail: {value: 3}}, {transparent: true, depthWrite: false, side: THREE.DoubleSide});
+        const fm = new THREE.Mesh(new THREE.PlaneGeometry(230, 230), mat); fm.frustumCulled = false;
+        fm.scale.setScalar(sc); fm.position.z = z;
+        this.heroGroup.add(fm); this.flakes.push({mat, spin, grow}); this.tk.flake.push(fm);
+      }
+    } else {
+      const m1 = makePetals(V1LOOK ? 610 : 233, 1, 0);
+      const m2 = makePetals(V1LOOK ? 233 : 89, -1, 0.5); m2.scale.setScalar(0.5); m2.position.z = 14;
+      const m3 = makePetals(V1LOOK ? 89 : 34, 1, 0.25); m3.scale.setScalar(0.22); m3.position.z = 26;
+    }
     this.heroGroup.position.copy(HERO_POS);
     this.heroGroup.scale.setScalar(HERO_SCALE);
     this.scene.add(this.heroGroup);
     const sunMat = mk(SUN_VERT, SUN_FRAG, {}, {transparent: true, blending: THREE.AdditiveBlending, depthWrite: false});
     this.sun = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), sunMat); this.sun.frustumCulled = false;
-    this.sun.position.z = 34; this.sun.scale.setScalar(IS_V1 ? 60 : IS_TK ? 52 : 45);
+    this.sun.position.z = IS_SN ? -6 : 34; this.sun.scale.setScalar(IS_V1 ? 60 : TKLIKE ? 52 : 45);
     this.heroGroup.add(this.sun);
 
     // ---- 花粉 / 胞子 ----
@@ -273,6 +296,30 @@ export class MVScene {
     const pmat = mk(PART_VERT, PART_FRAG, {uPx: {value: H / 720}}, {transparent: true, blending: THREE.AdditiveBlending, depthWrite: false});
     const pts = new THREE.Points(pg, pmat); pts.frustumCulled = false;
     this.scene.add(pts);
+
+    if (IS_SN) {
+      // ---- 降る雪 ----
+      const NS = 16000;
+      const ss = new Float32Array(NS * 4); const rs = mulberry(77);
+      for (let i = 0; i < ss.length; i++) ss[i] = rs();
+      const sgeo = new THREE.BufferGeometry();
+      sgeo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(NS * 3), 3));
+      sgeo.setAttribute('aSeed', new THREE.BufferAttribute(ss, 4));
+      const smat = mk(SNOW_VERT, SNOW_FRAG, {uPx: {value: H / 720}}, {transparent: true, blending: THREE.AdditiveBlending, depthWrite: false});
+      const spts = new THREE.Points(sgeo, smat); spts.frustumCulled = false;
+      this.scene.add(spts); this.tk.snow.push(spts);
+      // ---- 雪だるま: 両側の歩道に並ぶ ----
+      const base = snowmanGeometry();
+      const mg = new THREE.InstancedBufferGeometry();
+      for (const k of Object.keys(base.attributes)) mg.setAttribute(k, base.attributes[k]);
+      const men: number[] = [];
+      const rm = mulberry(4242);
+      for (const side of [-1, 1]) for (let s = 0; s < SLOTS; s++) men.push(side, s * pitch + 15 + rm() * 4, 1.9 + rm() * 0.8, s * 2 + (side > 0 ? 1 : 0) + rm());
+      mg.setAttribute('aMan', new THREE.InstancedBufferAttribute(new Float32Array(men), 4));
+      mg.instanceCount = men.length / 4;
+      const mm = new THREE.Mesh(mg, mk(MAN_VERT, MAN_FRAG)); mm.frustumCulled = false;
+      this.scene.add(mm); this.tk.men.push(mm);
+    }
 
     // ---- ポスト ----
     const rt = new THREE.WebGLRenderTarget(W, H, {type: THREE.HalfFloatType, samples: 2});
@@ -322,6 +369,11 @@ export class MVScene {
     U.uVox.value = A.vox[f]; U.uVoxOn.value = A.voxOn[f]; U.uPitch.value = A.pitch[f];
     A.specAt(f, this.spec);
     // 植物は序盤は芽 → 中盤で茂り → サビで満開、ブレイクで一旦しぼむ
+    if (IS_SN) {
+      U.uFall.value = Math.min(1, curve(SN_FALL, t) + 0.12 * inten);
+      U.uSnow.value = Math.max(0, curve(SN_COVER, t));
+      U.uMan.value = snMan(t); U.uMelt.value = snMelt(t);
+    }
     U.uPlant.value = Math.min(1.25, 0.28 + sstep(2, 40, t) * 0.55 + inten * 0.5 + sstep(70, 80, t) * 0.15);
 
     // カメラ
@@ -365,17 +417,24 @@ export class MVScene {
       h.mat.uniforms.uBloom.value = Math.min(1.2, bloom * (1 + i * 0.05));
       h.mat.uniforms.uSpin.value = spinBase * h.spin * (1 + i * 0.6);
     });
+    // 雪の結晶: 序盤に枝が伸び、盛り上がりで枝分かれが細かくなる。キックで脈打ち、ゆっくり回る
+    this.flakes.forEach((fl) => {
+      const u = fl.mat.uniforms;
+      u.uGrow.value = fl.grow * (0.45 + 0.55 * sstep(0, 14, t)) * (1 + 0.06 * kick + 0.04 * bass);
+      u.uDetail.value = 1.2 + 1.5 * sstep(4, 30, t) + 1.3 * inten;
+      u.uSpin.value = spinBase * 0.6 * fl.spin;
+    });
     this.heroGroup.rotation.z = Math.sin(t * 0.05) * 0.12;
     this.heroGroup.scale.setScalar(HERO_SCALE * (1 + 0.05 * kick));
     const hd = new THREE.Vector3().subVectors(HERO_POS, pos).normalize();
     this.sky.uniforms.uHeroDir.value.copy(hd);
-    this.sky.uniforms.uKal.value = Math.floor(bar / 4) % 4;
+    this.sky.uniforms.uKal.value = IS_SN ? 0 : Math.floor(bar / 4) % 4;   // 雪: 空の曼荼羅も6回対称のまま
     this.ground.uniforms.uCamPos.value.set(pos.x, 0, 0);
 
     // ポスト
     // 万華鏡の曼荼羅は2小節(8拍)ぶん続く: 16拍の後半の8拍、ゆっくり出入り
     const ph8 = ((bp / 8) % 1 + 1) % 1;
-    const kalOn = (inten > 0.5 ? 1 : 0) * (Math.floor(bp / 8) % 2 === 1 ? sstep(0, 0.2, ph8) * sstep(1, 0.8, ph8) : 0);
+    const kalOn = (inten > 0.5 ? 1 : 0) * (Math.floor(bp / 8) % (IS_SN ? 4 : 2) === (IS_SN ? 3 : 1) ? sstep(0, 0.2, ph8) * sstep(1, 0.8, ph8) : 0);   // 雪: 32拍に8拍だけ
     const dropHit = V1 ? (t >= 72 && t < 72.4 ? 0.6 * (1 - (t - 72) / 0.4) : t >= 100 && t < 100.35 ? 0.6 * (1 - (t - 100) / 0.35) : 0) : 0.6 * A.dropFlash[f];
     const P = this.post.uniforms;
     {
