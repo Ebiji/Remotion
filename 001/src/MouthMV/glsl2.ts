@@ -373,7 +373,7 @@ void main(){
 export const POST_FRAG = /* glsl */ `
 ${COMMON}
 uniform sampler2D tDiffuse; uniform vec2 uRes; uniform float uKal, uFlash, uZoom, uRoll, uGrain; uniform vec2 uSun; uniform float uSunVis;
-uniform float uSnowK, uDraw;
+uniform float uSnowK, uDraw, uFScale, uCover;
 varying vec2 vUv;
 vec2 kal(vec2 uv, float n){
   vec2 p = uv-0.5; p.x *= uRes.x/uRes.y;
@@ -423,13 +423,13 @@ void main(){
   // 雪の結晶の万華鏡: 歌声に合わせ、街と雪が6回対称に折り畳まれて、雪の結晶の形の中に現れる
   if (uSnowK > 0.5 && uKal > 0.001) {
     vec2 fp = (vUv - 0.5)*vec2(uRes.x/uRes.y, 1.0);
-    fp = rot(uTime*0.12)*fp/(0.95 + 0.05*uKick);
+    fp = rot(uTime*0.12)*fp/((0.95 + 0.05*uKick)*uFScale);
     float sd = flakeSD(fp, uDraw);
-    float fill = smoothstep(0.004, -0.004, sd);
+    float fill = max(smoothstep(0.004, -0.004, sd), uCover);   // 結晶が広がりきると画面全体が曼荼羅に
     vec2 kuv = kal(uv, 6.0);
     vec3 kc = texture2D(tDiffuse, kuv).rgb*1.15;
-    float edge = exp(-abs(sd)*90.0);
-    float glow = exp(-max(sd, 0.0)*18.0);
+    float edge = exp(-abs(sd)*90.0*uFScale)*(1.0 - uCover);
+    float glow = exp(-max(sd, 0.0)*18.0*uFScale)*(1.0 - uCover);
     vec3 ir = rainbow(uHue + length(fp)*2.2 + uTime*0.05);
     col = mix(col*(1.0 - 0.45*uKal), kc, fill*uKal);
     col += ir*(edge*1.4 + glow*0.25)*uKal*(0.8 + 0.6*uKick + 0.6*uVoxOn);
