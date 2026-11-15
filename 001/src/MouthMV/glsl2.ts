@@ -373,6 +373,7 @@ void main(){
 export const POST_FRAG = /* glsl */ `
 ${COMMON}
 uniform sampler2D tDiffuse; uniform vec2 uRes; uniform float uKal, uFlash, uZoom, uRoll, uGrain; uniform vec2 uSun; uniform float uSunVis;
+uniform float uSnowK, uDraw;
 varying vec2 vUv;
 vec2 kal(vec2 uv, float n){
   vec2 p = uv-0.5; p.x *= uRes.x/uRes.y;
@@ -380,13 +381,34 @@ vec2 kal(vec2 uv, float n){
   float seg = 6.2831853/n; a = abs(mod(a,seg)-seg*0.5);
   p = r*vec2(cos(a),sin(a)); p.x /= uRes.x/uRes.y; return p+0.5;
 }
+float segD(vec2 p, vec2 a, vec2 b, float r0, float r1){ vec2 pa=p-a, ba=b-a; float h=clamp(dot(pa,ba)/dot(ba,ba),0.0,1.0); return length(pa-ba*h) - mix(r0, r1, h); }
+/** 画面いっぱいの雪の結晶の形(太めの樹枝): 中に万華鏡の街を映す。g = 描かれた割合(枝が中心から伸びる) */
+float flakeSD(vec2 p, float g){
+  float r = length(p); float a = atan(p.y, p.x);
+  float S = 1.0471976; float k = floor(a/S + 0.5); a = abs(a - k*S);
+  vec2 q = r*vec2(cos(a), sin(a));
+  float L = 0.47*g;
+  float d = segD(q, vec2(0.0), vec2(L, 0.0), 0.05, 0.022);
+  vec2 z = q; float len = L; float per = 0.11; float w = 0.03;
+  for (int i = 0; i < 3; i++) {
+    float x0 = clamp(floor(z.x/per + 0.5)*per, per*1.2, max(len*0.88, per*1.2));
+    vec2 b = z - vec2(x0, 0.0); b.y = abs(b.y); b = rot(1.0471976)*b;
+    float bl = max(len - x0, 0.0)*0.42;
+    d = min(d, segD(b, vec2(0.0), vec2(bl, 0.0), w, w*0.35));
+    z = b; len = bl; per *= 0.5; w *= 0.6;
+  }
+  float hexD = dot(q, vec2(0.8660254, 0.5)) - 0.09*g;
+  float tipD = dot(abs(q - vec2(L*0.98, 0.0)), vec2(0.8660254, 0.5)) - 0.035*g;
+  hexD = min(hexD, tipD);
+  return min(d, hexD);
+}
 void main(){
   vec2 uv = vUv;
   // 中心に向かうズームパンチ(キック) + ロール
   vec2 c = uv-0.5;
   c *= 1.0 - uZoom;
   uv = c + 0.5;
-  uv = mix(uv, kal(uv, 6.0), uKal);
+  if (uSnowK < 0.5) uv = mix(uv, kal(uv, 6.0), uKal);
   vec2 dir = uv-0.5; float rr = length(dir);
   float ab = 0.0012 + 0.004*uKick + 0.002*uSnare;
   vec3 col;
@@ -398,6 +420,21 @@ void main(){
   for(int i=1;i<=4;i++){ blur += texture2D(tDiffuse, uv - dir*float(i)*0.006*(uKick+uSnare*0.5)).rgb; }
   col = mix(col, blur*0.25, clamp(0.2*(uKick+uSnare*0.5),0.0,0.25));
   col += uFlash*rainbow(uHue+rr)*0.35;
+  // 雪の結晶の万華鏡: 歌声に合わせ、街と雪が6回対称に折り畳まれて、雪の結晶の形の中に現れる
+  if (uSnowK > 0.5 && uKal > 0.001) {
+    vec2 fp = (vUv - 0.5)*vec2(uRes.x/uRes.y, 1.0);
+    fp = rot(uTime*0.12)*fp/(0.95 + 0.05*uKick);
+    float sd = flakeSD(fp, uDraw);
+    float fill = smoothstep(0.004, -0.004, sd);
+    vec2 kuv = kal(uv, 6.0);
+    vec3 kc = texture2D(tDiffuse, kuv).rgb*1.15;
+    float edge = exp(-abs(sd)*90.0);
+    float glow = exp(-max(sd, 0.0)*18.0);
+    vec3 ir = rainbow(uHue + length(fp)*2.2 + uTime*0.05);
+    col = mix(col*(1.0 - 0.45*uKal), kc, fill*uKal);
+    col += ir*(edge*1.4 + glow*0.25)*uKal*(0.8 + 0.6*uKick + 0.6*uVoxOn);
+    col += vec3(1.0)*edge*uKal*0.35;
+  }
   // 巨大な花から放射する光の筋(放射サンプリング)
   if (uExtras > 0.5 && uSunVis > 0.01 && uKal < 0.05) {
     vec2 toSun = uSun - uv; float rays = 0.0;

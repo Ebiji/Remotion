@@ -55,6 +55,23 @@ const cumKick = (() => { const o = new Float32Array(A.kick.length); let s = 0; f
 const SN_FALL: [number, number][] = [[0, 0.18], [3, 0.4], [15, 0.62], [25, 0.72], [30, 0.55], [40, 0.75], [63, 0.72], [67, 0.4], [70, 1.0], [80, 1.0], [84, 0.55], [92, 0.3]];
 const SN_COVER: [number, number][] = [[0, 0], [4, 0.04], [25, 0.62], [40, 0.88], [63, 0.92], [69, 0.32], [71, 0.45], [79, 0.92], [82, 0.85], [91, 0.2]];
 const snMan = (t: number) => (t < 69.5 ? sstep(24, 36, t) : sstep(70, 75, t));
+/** 'snow' の雪の結晶の万華鏡: 歌声のフレーズの頭で始まり、2小節(8拍)続く。前の回から14拍あける */
+const SN_KAL = (() => {
+  const raw = A.voxOnsets;
+  const len = Math.round(8 * A.beatPeriod), gap = Math.round(14 * A.beatPeriod);
+  const env = new Float32Array(A.kick.length), draw = new Float32Array(A.kick.length);
+  let next = 45;
+  for (const f0 of raw) {
+    if (f0 < next || f0 + 30 > A.FRAMES) continue;
+    next = f0 + gap;
+    for (let f = f0; f < Math.min(env.length, f0 + len); f++) {
+      const u = (f - f0) / len;
+      env[f] = Math.max(env[f], sstep(0, 0.06, u) * sstep(1, 0.86, u));
+      draw[f] = Math.max(draw[f], sstep(0, 0.22, u));
+    }
+  }
+  return {env, draw};
+})();
 const snMelt = (t: number) => (t < 69.5 ? sstep(63, 69, t) : sstep(81, 89, t));
 
 export class MVScene {
@@ -328,7 +345,7 @@ export class MVScene {
     this.bloom = new UnrealBloomPass(new THREE.Vector2(W / 2, H / 2), 0.7, 0.7, 0.5);
     this.composer.addPass(this.bloom);
     this.post = new ShaderPass({
-      uniforms: {...U, tDiffuse: {value: null}, uRes: {value: new THREE.Vector2(W, H)}, uKal: {value: 0}, uFlash: {value: 0}, uZoom: {value: 0}, uRoll: {value: 0}, uGrain: {value: 0.025}, uSun: {value: new THREE.Vector2(0.5, 0.7)}, uSunVis: {value: 0}},
+      uniforms: {...U, tDiffuse: {value: null}, uSnowK: {value: IS_SN ? 1 : 0}, uDraw: {value: 0}, uRes: {value: new THREE.Vector2(W, H)}, uKal: {value: 0}, uFlash: {value: 0}, uZoom: {value: 0}, uRoll: {value: 0}, uGrain: {value: 0.025}, uSun: {value: new THREE.Vector2(0.5, 0.7)}, uSunVis: {value: 0}},
       vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
       fragmentShader: POST_FRAG,
     });
@@ -442,7 +459,8 @@ export class MVScene {
       P.uSun.value.set(sp.x * 0.5 + 0.5, sp.y * 0.5 + 0.5);
       P.uSunVis.value = sp.z < 1 ? Math.max(0, 1 - Math.max(Math.abs(sp.x), Math.abs(sp.y)) * 0.8) : 0;
     }
-    P.uKal.value = kalOn; P.uFlash.value = Math.max(0.08 * snare * inten, dropHit * 0.4);
+    P.uKal.value = IS_SN ? SN_KAL.env[f] : kalOn;
+    P.uDraw.value = IS_SN ? SN_KAL.draw[f] : 0; P.uFlash.value = Math.max(0.08 * snare * inten, dropHit * 0.4);
     P.uZoom.value = 0.012 * kick * (0.35 + inten) + 0.005 * snare;
     this.bloom.strength = 0.36 + 0.3 * kick + 0.18 * inten;
     this.bloom.threshold = 0.8; this.bloom.radius = 0.75;

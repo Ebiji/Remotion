@@ -66,6 +66,7 @@ export const specAt = (f: number, out: number[]) => {
 /** 女性スキャット(声域の旋律線): 存在感・音の出だし・ピッチ (scripts/analyze_voice.py) */
 export const vox = smooth(rawAny.vox ?? [], 0.7, 0.12);
 export const voxOn = pulse(rawAny.voxOn ?? [], null, 9, 1);
+export const voxOnsets: number[] = rawAny.voxOn ?? [];
 export const pitch = smooth(rawAny.pitch ?? [], 0.5, 0.5);
 
 /** 山場(静→動)の頭: ラウドネスが急に立ち上がったフレーム。曲ごとに自動検出 */
