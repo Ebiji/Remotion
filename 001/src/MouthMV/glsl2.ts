@@ -6,8 +6,9 @@ ${BLDG_VERT}
 attribute vec3 aStart; attribute vec4 aMeta; attribute vec2 aUV; attribute vec4 aWall;
 uniform float uPlant, uHop;
 uniform vec4 uBand;      // LOD帯域: 近い端, 遠い端, 手前のフェード幅, 奥のフェード幅
-varying vec3 vW; varying vec3 vN; varying vec4 vM; varying vec2 vUV; varying float vFade;
+varying vec3 vW; varying vec3 vN; varying vec4 vM; varying vec2 vUV; varying float vFade; varying float vMode; varying float vId;
 void main(){
+  vMode = aWall.x; vId = aInst2.x;
   float zzq = mod(aInst.y - uTravel, uLen);
   if (zzq < uBand.x || zzq >= uBand.y) {           // この細かさの担当外 → 即座に画面外へ
     gl_Position = vec4(3.0, 3.0, 3.0, 1.0); vW = vec3(0.0); vN = vec3(0.0, 1.0, 0.0); vM = vec4(0.0); vUV = vec2(0.0); vFade = 0.0; return;
@@ -67,7 +68,8 @@ void main(){
 
 export const PLANT_FRAG = /* glsl */ `
 ${COMMON}
-varying vec3 vW; varying vec3 vN; varying vec4 vM; varying vec2 vUV; varying float vFade;
+uniform float uIllum;
+varying vec3 vW; varying vec3 vN; varying vec4 vM; varying vec2 vUV; varying float vFade; varying float vMode; varying float vId;
 void main(){
   if (h21(gl_FragCoord.xy) > vFade) discard;       // LOD切り替えはディザでなめらかに
   vec3 N = normalize(vN); if(!gl_FrontFacing) N = -N;
@@ -112,10 +114,30 @@ void main(){
     float pt = h21(floor(vW.xz*2.0 + vW.y));
     col = mix(col, vec3(0.58,0.68,0.88)*(0.75+0.25*pt) + rainbow(hue)*0.05, clamp(uSnow*up*(0.7+0.4*pt), 0.0, 0.85));
   }
+  if (uIllum > 0.5 && kind < 1.5 && vMode < 2.5) {
+    // 木のイルミネーション: 枝や葉に小さな電球が点々と灯り、拍で波のように瞬く
+    // 葉: 1枚ごとに中央に1つの電球 / 枝・幹: らせん状に巻いた電球の列
+    float r, bulb;
+    if (kind > 0.5) {
+      vec2 lq = (vUV - vec2(0.5, 0.55))*vec2(1.6, 1.0);
+      r = h21(floor(vW.xz*0.9) + floor(vW.y*0.9)*7.7 + vId);
+      bulb = step(0.15, r)*(exp(-dot(lq, lq)*90.0)*1.6 + 0.25*exp(-dot(lq, lq)*14.0));
+    } else {
+      float k = vUV.y*10.0;
+      vec2 sq = vec2(fract(vUV.x*2.0 + k*0.5) - 0.5, fract(k) - 0.5);
+      r = h21(floor(vec2(vUV.x*2.0 + k*0.5, k)) + vId*3.1);
+      bulb = step(0.25, r)*(exp(-dot(sq, sq)*90.0)*1.6 + 0.25*exp(-dot(sq, sq)*14.0));
+    }
+    float wave = 0.5 + 0.5*sin(uBeatPos*3.14159 - vW.y*0.35 + r*12.0);
+    float tw = 0.35 + 0.65*step(0.35, fract(r*7.3 + uBeatPos*0.25)) * (0.6 + 0.4*wave);
+    float setC = h11(vId*5.1);   // 木ごとに電球の色の組み合わせ: 暖かい白 / 青白 / 虹色
+    vec3 bc = setC < 0.4 ? vec3(1.0, 0.82, 0.55) : (setC < 0.7 ? vec3(0.65, 0.85, 1.0) : rainbow(r*3.0 + uHue));
+    col = mix(col, col*0.55, uIllum*0.35) + bc*bulb*tw*(4.5 + 2.5*uKick + 1.5*uVoxOn)*smoothstep(300.0, 20.0, dist);
+  }
   float fg = 1.0-exp(-dist*0.0046);
   vec3 fogC = rainbow(uHue+0.55+dist*0.0006)*(0.08+0.10*uInten) + vec3(0.015,0.0,0.055);
   col = mix(col, fogC, fg);
-  gl_FragColor = vec4(min(col, vec3(1.9)), 1.0);
+  gl_FragColor = vec4(min(col, vec3(2.6)), 1.0);
 }`;
 
 export const LAMP_VERT = /* glsl */ `

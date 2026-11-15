@@ -86,7 +86,7 @@ export class MVScene {
     this.U = {
       uTime: {value: 0}, uTravel: {value: 0}, uLen: {value: A.LEN}, uKick: {value: 0}, uSnare: {value: 0}, uHat: {value: 0},
       uBass: {value: 0}, uMid: {value: 0}, uInten: {value: 0}, uHue: {value: 0}, uBeat: {value: 0}, uKickAge: {value: 99},
-      uBeatPos: {value: 0}, uKickIdx: {value: 0}, uBend: {value: 0}, uRoadAmp: {value: IS_V1 ? 0 : 1}, uExtras: {value: V1LOOK ? 1 : 0}, uMand: {value: IS_V1 ? new THREE.Vector2(0.55, 0.5) : TKLIKE ? new THREE.Vector2(0.4, 0.35) : new THREE.Vector2(0.2, 0.2)}, uHop: {value: TKLIKE ? 1 : 0}, uSnow: {value: 0}, uFall: {value: 0}, uMan: {value: 0}, uMelt: {value: 0}, uVox: {value: 0}, uVoxOn: {value: 0}, uPitch: {value: 0}, uSpec: {value: this.spec}, uPlant: {value: 0},
+      uBeatPos: {value: 0}, uKickIdx: {value: 0}, uBend: {value: 0}, uRoadAmp: {value: IS_V1 ? 0 : 1}, uExtras: {value: V1LOOK ? 1 : 0}, uMand: {value: IS_V1 ? new THREE.Vector2(0.55, 0.5) : TKLIKE ? new THREE.Vector2(0.4, 0.35) : new THREE.Vector2(0.2, 0.2)}, uHop: {value: TKLIKE ? 1 : 0}, uSnow: {value: 0}, uIllum: {value: IS_SN ? 1 : 0}, uFall: {value: 0}, uMan: {value: 0}, uMelt: {value: 0}, uVox: {value: 0}, uVoxOn: {value: 0}, uPitch: {value: 0}, uSpec: {value: this.spec}, uPlant: {value: 0},
     };
     const U = this.U;
     const mk = (vs: string, fs: string, extra: any = {}, params: THREE.ShaderMaterialParameters = {}) =>
@@ -243,7 +243,7 @@ export class MVScene {
       lig.setAttribute('aL2', new THREE.InstancedBufferAttribute(new Float32Array(lb), 4));
       lig.instanceCount = la.length / 4;
       const lm2 = new THREE.Mesh(lig, mk(LANTERN_VERT, LANTERN_FRAG)); lm2.frustumCulled = false;
-      this.scene.add(lm2); this.tk.lanterns.push(lm2);
+      if (!IS_SN) { this.scene.add(lm2); this.tk.lanterns.push(lm2); }   // 雪: 提灯はなし(木のイルミネーションに)
 
       const tm = mk(TOWER_VERT, TOWER_FRAG);
       for (const tg2 of [tokyoTower(-150, -440, 300), skyTree(175, -480, 430)]) {
