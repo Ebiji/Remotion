@@ -128,7 +128,7 @@ void main(){
     ${SNOWPAL ? 'col *= 0.3;   // 雪: 壁は濃紺のシルエットに' : ''}
     float nf = ${SNOWPAL ? '0.3' : '1.0'};
     float wave = 0.5+0.5*sin(cell.y*0.42 - uTime*2.4 + id*2.0 + cell.x*0.7);
-    float lit = step(0.40 - 0.22*uInten, r*0.9 + wave*0.35 - 0.1);
+    float lit = step(${SNOWPAL ? '0.12 - 0.12*uInten' : '0.40 - 0.22*uInten'}, r*0.9 + wave*0.35 - 0.1);   // 雪: ほとんどの部屋に明かり
     vec3 wc = rainbow(id*0.37 + cell.y*0.03 + r*0.12 + uHue);
     ${SNOWPAL ? `float wr = h21(cell*1.7 + id*5.3);
     wc = mix(vec3(0.78,0.88,1.0), vec3(0.55,0.75,0.95), r);                                // 窓明かり: 白〜淡い青が基本
@@ -136,7 +136,7 @@ void main(){
     wc = mix(wc, vec3(1.0,0.78,0.48), step(0.9, wr));                                     // 1割は暖色` : ''}
     float glass = 0.55 + 0.9*(1.0-f.y);
     col += rainbow(uHue+0.62+v*0.004)*win*car*0.085*glass;
-    col += wc*win*car*glass*(0.05 + 1.1*lit*(0.55+sp*0.9+uHat*0.4)*(0.6+0.8*r));
+    col += wc*win*car*glass*(0.05 + 1.1*lit*(0.55+sp*0.9+uHat*0.4)*(0.6+0.8*r))*${SNOWPAL ? '1.45' : '1.0'};   // 雪: 室内を明るく
     // フラクタル(シェルピンスキーカーペット)の穴 = 発光パネル
     float hole = (1.0-car);
     float stripes = 0.5+0.5*sin(v*1.6 - uTime*5.0 + u*0.9);

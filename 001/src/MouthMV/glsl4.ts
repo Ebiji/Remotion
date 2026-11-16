@@ -235,10 +235,15 @@ void main(){
     col = vec3(0.22, 0.12, 0.06)*(0.4 + 0.6*ndl)*groove + neon*rim*0.3;
   } else if (vPart < 4.5) {
     float band = smoothstep(0.03, 0.0, abs(vP.y - 4.02) - 0.05);
-    col = rainbow(vId*0.53 + 0.6)*0.10*(0.4 + 0.6*ndl) + neon*band*(0.9 + 0.8*uBeat) + neon*rim*0.3;
+    // 帽子: 濃い色の山に、暖かい色のリボン(赤・金・橙)
+    vec3 warmB = h11(vId*3.3) < 0.4 ? vec3(0.85,0.16,0.12) : (h11(vId*3.3) < 0.75 ? vec3(1.0,0.75,0.35) : vec3(1.0,0.48,0.15));
+    col = vec3(0.10,0.05,0.04)*(0.4 + 0.6*ndl) + warmB*band*(1.0 + 0.4*uBeat) + vec3(0.9,0.6,0.4)*rim*0.15;
   } else {
     float stripe = step(0.5, fract(atan(vP.z, vP.x)*2.0 + vP.y*3.0));
-    vec3 sc = rainbow(vId*0.71 + uHue*0.5 + stripe*0.35);
+    // マフラー: 赤・橙・金・クリームの暖かい縞
+    float hv = h11(vId*7.7);
+    vec3 sa = hv < 0.35 ? vec3(0.82,0.14,0.12) : (hv < 0.7 ? vec3(1.0,0.50,0.16) : vec3(0.95,0.72,0.30));
+    vec3 sc = mix(sa, vec3(1.0,0.92,0.78), stripe*0.6);
     col = sc*(0.35 + 0.65*ndl)*(0.9 + 0.5*uBeat + 0.4*uVoxOn) + sc*rim*0.4;
   }
   float fg = 1.0 - exp(-dist*0.0046);
