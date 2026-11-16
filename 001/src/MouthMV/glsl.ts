@@ -130,7 +130,10 @@ void main(){
     float wave = 0.5+0.5*sin(cell.y*0.42 - uTime*2.4 + id*2.0 + cell.x*0.7);
     float lit = step(0.40 - 0.22*uInten, r*0.9 + wave*0.35 - 0.1);
     vec3 wc = rainbow(id*0.37 + cell.y*0.03 + r*0.12 + uHue);
-    ${SNOWPAL ? `wc = mix(mix(vec3(0.78,0.88,1.0), vec3(0.55,0.75,0.95), r), vec3(1.0,0.78,0.48), step(0.9, h21(cell*1.7 + id*5.3)));   // 窓明かり: 白〜淡い青、ところどころ暖色` : ''}
+    ${SNOWPAL ? `float wr = h21(cell*1.7 + id*5.3);
+    wc = mix(vec3(0.78,0.88,1.0), vec3(0.55,0.75,0.95), r);                                // 窓明かり: 白〜淡い青が基本
+    wc = mix(wc, rainbowO(id*0.37 + cell.y*0.03 + r*0.5)*1.05, step(0.64, wr));                // 3割ほどは赤・緑・マゼンタ・橙の色の窓
+    wc = mix(wc, vec3(1.0,0.78,0.48), step(0.9, wr));                                     // 1割は暖色` : ''}
     float glass = 0.55 + 0.9*(1.0-f.y);
     col += rainbow(uHue+0.62+v*0.004)*win*car*0.085*glass;
     col += wc*win*car*glass*(0.05 + 1.1*lit*(0.55+sp*0.9+uHat*0.4)*(0.6+0.8*r));
