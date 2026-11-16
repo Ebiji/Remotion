@@ -10,13 +10,17 @@ vec3 rainbow(float h){
   vec3 c0 = vec3(0.039,0.165,0.322), c1 = vec3(0.498,0.722,0.902), c2 = vec3(0.659,0.847,0.941), c3 = vec3(0.933,0.965,1.0), c4 = vec3(0.70,0.74,0.80);
   float f = fract(t); f = f*f*(3.0-2.0*f);
   vec3 p = t < 1.0 ? mix(c0,c1,f) : t < 2.0 ? mix(c1,c2,f) : t < 3.0 ? mix(c2,c3,f) : t < 4.0 ? mix(c3,c4,f) : mix(c4,c1,f);
-  float acc = smoothstep(0.84, 0.95, fract(h*2.618 + 0.31))*0.8;
+  // uWarm(30秒から少しずつ0→1): 青白の帯が、琥珀・ローズ・クリームの暖かい帯へ寄っていき、色の差し色も増える
+  vec3 w0 = vec3(0.30,0.12,0.16), w1 = vec3(0.95,0.55,0.32), w2 = vec3(1.0,0.80,0.52), w3 = vec3(1.0,0.93,0.80), w4 = vec3(0.85,0.70,0.66);
+  vec3 pw = t < 1.0 ? mix(w0,w1,f) : t < 2.0 ? mix(w1,w2,f) : t < 3.0 ? mix(w2,w3,f) : t < 4.0 ? mix(w3,w4,f) : mix(w4,w1,f);
+  p = mix(p, pw, uWarm*0.8);
+  float acc = smoothstep(0.84 - 0.22*uWarm, 0.95 - 0.12*uWarm, fract(h*2.618 + 0.31))*0.8;
   return mix(p*0.9, rainbowO(h), acc);
 }` : `
 vec3 rainbow(float h){vec3 c=0.5+0.5*cos(6.28318*(h+vec3(0.0,0.33,0.67))); c = c*c*(1.4-0.4*c)*1.25; c.g *= (1.0 - 0.6*c.r)*0.92; return c;}`;
 /** 共有GLSL: ユニフォーム・ノイズ・虹パレット・ビルの挙動(ビルと植物で同一計算) */
 export const COMMON = /* glsl */ `
-uniform float uTime, uTravel, uLen, uKick, uSnare, uHat, uBass, uMid, uInten, uHue, uBeat, uKickAge, uBeatPos, uKickIdx, uBend, uVox, uVoxOn, uPitch, uRoadAmp, uExtras, uSnow;
+uniform float uTime, uTravel, uLen, uKick, uSnare, uHat, uBass, uMid, uInten, uHue, uBeat, uKickAge, uBeatPos, uKickIdx, uBend, uVox, uVoxOn, uPitch, uRoadAmp, uExtras, uSnow, uWarm;
 uniform vec2 uMand;
 uniform float uSpec[16];
 float h11(float p){p=fract(p*.1031);p*=p+33.33;p*=p+p;return fract(p);}
@@ -94,7 +98,7 @@ void main(){
     col += rainbow(id*0.31+uHue+ew*0.05)*(edgeGlow*0.5 + grid*0.05*(0.4+uInten))*smoothstep(260.0,60.0,dist);
     if (uSnow > 0.001) {   // 屋上に積もる雪 (縁のネオンは雪越しに少し残る)
       float nn = h21(floor(vW.xz*1.5)) * 0.15;
-      vec3 sc = vec3(0.56,0.66,0.86)*(0.8+nn) + rainbow(uHue+id*0.2)*0.06;
+      vec3 sc = mix(vec3(0.56,0.66,0.86), vec3(0.86,0.80,0.74), uWarm*0.5)*(0.8+nn) + rainbow(uHue+id*0.2)*0.06;
       col = mix(col, sc, clamp(uSnow*1.1, 0.0, 0.9)) + rainbow(id*0.31+uHue)*edgeGlow*0.25*uSnow;
     }
   } else if (abs(N.y) < 0.5) {
@@ -133,7 +137,7 @@ void main(){
     ${SNOWPAL ? `float wr = h21(cell*1.7 + id*5.3);
     wc = mix(vec3(0.78,0.88,1.0), vec3(0.55,0.75,0.95), r);                                // 窓明かり: 白〜淡い青が基本
     wc = mix(wc, rainbowO(id*0.37 + cell.y*0.03 + r*0.5)*1.05, step(0.64, wr));                // 3割ほどは赤・緑・マゼンタ・橙の色の窓
-    wc = mix(wc, vec3(1.0,0.78,0.48), step(0.9, wr));                                     // 1割は暖色` : ''}
+    wc = mix(wc, vec3(1.0,0.78,0.48), step(0.9, wr) + step(wr, 0.64)*step(h21(cell*3.1 + id), 0.75*uWarm));   // 暖色の窓は、後半ほど増える(1割→約6割)。色の窓はそのまま                                     // 1割は暖色` : ''}
     float glass = 0.55 + 0.9*(1.0-f.y);
     col += rainbow(uHue+0.62+v*0.004)*win*car*0.085*glass;
     col += wc*win*car*glass*(0.05 + 1.1*lit*(0.55+sp*0.9+uHat*0.4)*(0.6+0.8*r))*${SNOWPAL ? '1.45' : '1.0'};   // 雪: 室内を明るく
@@ -215,7 +219,7 @@ void main(){
     float sideM = smoothstep(9.0, 15.5, abs(x));
     float track = exp(-pow((abs(abs(x)-3.2)-0.0)*0.9, 2.0)) + exp(-pow((abs(abs(x)-9.6))*0.9, 2.0));
     float cover = ${SNOWPAL ? `clamp((uSnow*(0.15 + 1.0*sideM) - 0.25 + nz*0.5)*1.6, 0.0, 1.0)*0.8` : `clamp((uSnow*(0.75 + 0.55*sideM) - 0.25 + nz*0.5)*1.6, 0.0, 1.0)*(1.0 - 0.75*track*(1.0-sideM))`};
-    vec3 sc = vec3(0.42,0.52,0.80)*(0.78 + 0.22*nz) + rainbow(uHue + z*0.003 + nz*0.3)*0.08;
+    vec3 sc = mix(vec3(0.42,0.52,0.80), vec3(0.78,0.70,0.64), uWarm*0.5)*(0.78 + 0.22*nz) + rainbow(uHue + z*0.003 + nz*0.3)*0.08;   // 雪にも街の暖かい光が映る
     float lit = lane*0.9 + bars*0.4 + curb;
     col = mix(col, sc + lc*lit*0.25*(0.55+0.8*uInten), cover*0.92);
     vec2 gq = sp*9.0; float gr = h21(floor(gq));
@@ -307,6 +311,8 @@ void main(){
   ${SNOWPAL ? 'col = mix(col, vec3(0.024,0.102,0.20), 0.35);   // 雪: 澄んだ深い夜の藍 #061A33' : ''}
   // 地平線のグロー
   float hor = exp(-pow(el*5.0,2.0));
+  col += vec3(1.0,0.55,0.28)*hor*0.4*uWarm;
+  col = mix(col, col*vec3(1.25,0.95,0.80) + vec3(0.06,0.02,0.0), uWarm*0.6);   // 後半: 地平線に暖かい街明かりのにじみ
   col += rainbow(uHue + 0.15 + atan(d.x,-d.z)*0.1)*hor*(0.26+0.28*uInten+0.2*uKick);
   // 曼荼羅フラクタル (巨大花の背後に広がるKali集合 + 万華鏡フォールド)
   float seg = 6.2831853/(6.0 + 2.0*floor(uKal));

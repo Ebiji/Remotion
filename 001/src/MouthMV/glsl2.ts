@@ -122,7 +122,7 @@ void main(){
     float bulb = exp(-dot(sq, sq)*80.0) + 0.25*exp(-dot(sq, sq)*20.0);
     float tw = 0.78 + 0.22*sin(uTime*4.0 + r*40.0)*(0.4 + uHat) + 0.15*uBeat*step(0.5, r);   // 高音と拍で控えめに瞬く
     vec3 bc = r < 0.55 ? vec3(1.0, 0.851, 0.541) : vec3(1.0, 0.914, 0.722);
-    col = col*0.7 + bc*bulb*tw*3.4*smoothstep(260.0, 15.0, dist);
+    col = col*0.7 + bc*bulb*tw*3.4*(1.0 + 0.45*uWarm)*smoothstep(260.0, 15.0, dist);
   }
   float fg = 1.0-exp(-dist*0.0046);
   vec3 fogC = rainbow(uHue+0.55+dist*0.0006)*(0.08+0.10*uInten) + vec3(0.015,0.0,0.055);
@@ -441,10 +441,10 @@ void main(){
   col = mix(vec3(l), col, uSnowK > 0.5 ? 1.05 : 1.35);
   // 青みのカラーグレード: 影は青く、緑の出すぎを抑え、ハイライトは素直に
   float sh = 1.0 - smoothstep(0.0, 0.6, l);
-  col = col*vec3(0.95, 0.88, 1.08) + vec3(0.0, 0.012, 0.07)*sh;
+  col = col*mix(vec3(0.95, 0.88, 1.08), vec3(1.14, 0.98, 0.82), uSnowK*uWarm) + mix(vec3(0.0, 0.012, 0.07), vec3(0.05, 0.02, 0.03), uSnowK*uWarm*0.6)*sh;
   col = pow(col, vec3(0.92));
   // ビネット + グレイン
-  if (uSnowK > 0.5) col = mix(vec3(0.024,0.102,0.20), col, smoothstep(1.2, 0.38, rr*1.2));   // 四隅は深い藍 #061A33
+  if (uSnowK > 0.5) col = mix(mix(vec3(0.024,0.102,0.20), vec3(0.12,0.05,0.09), uWarm*0.6), col, smoothstep(1.2, 0.38, rr*1.2));   // 四隅は深い藍 #061A33
   else col *= smoothstep(1.25, 0.32, rr*1.2);
   col += (h21(uv*uRes + uTime) - 0.5)*uGrain;
   gl_FragColor = vec4(col, 1.0);
