@@ -218,9 +218,9 @@ void main(){
   if (vPart < 0.5) {
     // 雪: やわらかい陰影 + 内側に回る青い光 + ネオンの縁取り + きらめき
     float sss = pow(max(dot(-N, L), 0.0), 1.2);
-    col = vec3(0.60, 0.70, 0.90)*(0.38 + 0.52*ndl) + vec3(0.10, 0.18, 0.40)*sss;
+    col = vec3(0.94, 0.97, 1.0)*(0.62 + 0.46*ndl) + vec3(0.10, 0.18, 0.40)*sss*0.6;   // 明るい雪白で、背景の街から浮き立たせる
     col *= 0.9 + 0.1*fbm2(vP.xy*6.0 + vP.z*3.0);
-    col += neon*rim*(0.55 + 0.8*uKick + 0.4*uBeat);
+    col += neon*rim*(0.25 + 0.4*uKick + 0.2*uBeat) + vec3(0.66,0.85,0.94)*rim*0.35;
     col += vec3(1.0)*glint(vP.xy*30.0 + vP.z*17.0, 0.03)*0.8;
     // 溶けかけ: つやと半透明の青み
     float spec = pow(max(dot(reflect(-L, N), V), 0.0), 40.0);
