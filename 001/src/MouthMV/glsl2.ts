@@ -114,25 +114,15 @@ void main(){
     float pt = h21(floor(vW.xz*2.0 + vW.y));
     col = mix(col, vec3(0.58,0.68,0.88)*(0.75+0.25*pt) + rainbow(hue)*0.05, clamp(uSnow*up*(0.7+0.4*pt), 0.0, 0.85));
   }
-  if (uIllum > 0.5 && kind < 1.5 && vMode < 2.5) {
-    // 木のイルミネーション: 枝や葉に小さな電球が点々と灯り、拍で波のように瞬く
-    // 葉: 1枚ごとに中央に1つの電球 / 枝・幹: らせん状に巻いた電球の列
-    float r, bulb;
-    if (kind > 0.5) {
-      vec2 lq = (vUV - vec2(0.5, 0.55))*vec2(1.6, 1.0);
-      r = h21(floor(vW.xz*0.9) + floor(vW.y*0.9)*7.7 + vId);
-      bulb = step(0.15, r)*(exp(-dot(lq, lq)*90.0)*1.6 + 0.25*exp(-dot(lq, lq)*14.0));
-    } else {
-      float k = vUV.y*10.0;
-      vec2 sq = vec2(fract(vUV.x*2.0 + k*0.5) - 0.5, fract(k) - 0.5);
-      r = h21(floor(vec2(vUV.x*2.0 + k*0.5, k)) + vId*3.1);
-      bulb = step(0.25, r)*(exp(-dot(sq, sq)*90.0)*1.6 + 0.25*exp(-dot(sq, sq)*14.0));
-    }
-    float wave = 0.5 + 0.5*sin(uBeatPos*3.14159 - vW.y*0.35 + r*12.0);
-    float tw = 0.35 + 0.65*step(0.35, fract(r*7.3 + uBeatPos*0.25)) * (0.6 + 0.4*wave);
-    float setC = h11(vId*5.1);   // 木ごとに電球の色の組み合わせ: 暖かい白 / 青白 / 虹色
-    vec3 bc = setC < 0.4 ? vec3(1.0, 0.82, 0.55) : (setC < 0.7 ? vec3(0.65, 0.85, 1.0) : rainbow(r*3.0 + uHue));
-    col = mix(col, col*0.55, uIllum*0.35) + bc*bulb*tw*(4.5 + 2.5*uKick + 1.5*uVoxOn)*smoothstep(300.0, 20.0, dist);
+  if (uIllum > 0.5 && kind < 0.5 && vMode > 1.5 && vMode < 2.5) {
+    // 街路樹のLEDイルミネーション: 枝のラインに沿って巻いた小さな光の点列。シャンパンゴールド #FFD98A とウォームホワイト #FFE9B8
+    float k = vUV.y*16.0;
+    vec2 sq = vec2(fract(vUV.x*3.0 + k*0.5) - 0.5, fract(k) - 0.5);
+    float r = h21(floor(vec2(vUV.x*3.0 + k*0.5, k)) + vId*3.1);
+    float bulb = exp(-dot(sq, sq)*80.0) + 0.25*exp(-dot(sq, sq)*20.0);
+    float tw = 0.78 + 0.22*sin(uTime*4.0 + r*40.0)*(0.4 + uHat) + 0.15*uBeat*step(0.5, r);   // 高音と拍で控えめに瞬く
+    vec3 bc = r < 0.55 ? vec3(1.0, 0.851, 0.541) : vec3(1.0, 0.914, 0.722);
+    col = col*0.7 + bc*bulb*tw*3.4*smoothstep(260.0, 15.0, dist);
   }
   float fg = 1.0-exp(-dist*0.0046);
   vec3 fogC = rainbow(uHue+0.55+dist*0.0006)*(0.08+0.10*uInten) + vec3(0.015,0.0,0.055);
@@ -448,13 +438,14 @@ void main(){
   // トーンマップ + 彩度
   col = 1.0 - exp(-col*1.25);
   float l = dot(col, vec3(0.299,0.587,0.114));
-  col = mix(vec3(l), col, 1.35);
+  col = mix(vec3(l), col, uSnowK > 0.5 ? 1.05 : 1.35);
   // 青みのカラーグレード: 影は青く、緑の出すぎを抑え、ハイライトは素直に
   float sh = 1.0 - smoothstep(0.0, 0.6, l);
   col = col*vec3(0.95, 0.88, 1.08) + vec3(0.0, 0.012, 0.07)*sh;
   col = pow(col, vec3(0.92));
   // ビネット + グレイン
-  col *= smoothstep(1.25, 0.32, rr*1.2);
+  if (uSnowK > 0.5) col = mix(vec3(0.024,0.102,0.20), col, smoothstep(1.2, 0.38, rr*1.2));   // 四隅は深い藍 #061A33
+  else col *= smoothstep(1.25, 0.32, rr*1.2);
   col += (h21(uv*uRes + uTime) - 0.5)*uGrain;
   gl_FragColor = vec4(col, 1.0);
 }`;

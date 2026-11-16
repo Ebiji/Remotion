@@ -1,3 +1,19 @@
+import {SONG} from './audio';
+/** 'snow' の色彩設計: 虹色と色相の回転をやめ、冬の夜の青〜白のパレットに固定する */
+export const SNOWPAL = SONG === 'snow';
+/** 色を返す関数。通常は虹色。'snow' では 深い藍 #0A2A52 → 氷の青 #7FB8E6 → アイスブルー #A8D8F0 → 雪白 #EEF6FF → シルバーグレー の帯に置き換え、
+ * 赤・緑・マゼンタ・橙は一部(約3割の強さ)だけ残す */
+const RAINBOW = SNOWPAL ? `
+vec3 rainbowO(float h){vec3 c=0.5+0.5*cos(6.28318*(h+vec3(0.0,0.33,0.67))); c = c*c*(1.4-0.4*c)*1.25; c.g *= (1.0 - 0.6*c.r)*0.92; return c;}
+vec3 rainbow(float h){
+  float t = fract(h)*5.0;
+  vec3 c0 = vec3(0.039,0.165,0.322), c1 = vec3(0.498,0.722,0.902), c2 = vec3(0.659,0.847,0.941), c3 = vec3(0.933,0.965,1.0), c4 = vec3(0.70,0.74,0.80);
+  float f = fract(t); f = f*f*(3.0-2.0*f);
+  vec3 p = t < 1.0 ? mix(c0,c1,f) : t < 2.0 ? mix(c1,c2,f) : t < 3.0 ? mix(c2,c3,f) : t < 4.0 ? mix(c3,c4,f) : mix(c4,c1,f);
+  float acc = smoothstep(0.84, 0.95, fract(h*2.618 + 0.31))*0.8;
+  return mix(p*0.9, rainbowO(h), acc);
+}` : `
+vec3 rainbow(float h){vec3 c=0.5+0.5*cos(6.28318*(h+vec3(0.0,0.33,0.67))); c = c*c*(1.4-0.4*c)*1.25; c.g *= (1.0 - 0.6*c.r)*0.92; return c;}`;
 /** 共有GLSL: ユニフォーム・ノイズ・虹パレット・ビルの挙動(ビルと植物で同一計算) */
 export const COMMON = /* glsl */ `
 uniform float uTime, uTravel, uLen, uKick, uSnare, uHat, uBass, uMid, uInten, uHue, uBeat, uKickAge, uBeatPos, uKickIdx, uBend, uVox, uVoxOn, uPitch, uRoadAmp, uExtras, uSnow;
@@ -5,7 +21,7 @@ uniform vec2 uMand;
 uniform float uSpec[16];
 float h11(float p){p=fract(p*.1031);p*=p+33.33;p*=p+p;return fract(p);}
 float h21(vec2 p){vec3 p3=fract(vec3(p.xyx)*.1031);p3+=dot(p3,p3.yzx+33.33);return fract((p3.x+p3.y)*p3.z);}
-vec3 rainbow(float h){vec3 c=0.5+0.5*cos(6.28318*(h+vec3(0.0,0.33,0.67))); c = c*c*(1.4-0.4*c)*1.25; c.g *= (1.0 - 0.6*c.r)*0.92; return c;}
+${RAINBOW}
 mat2 rot(float a){float c=cos(a),s=sin(a);return mat2(c,-s,s,c);}
 float roadR(float w){ float L=uLen; return uRoadAmp*(34.0*sin(6.2832*w/L) + 12.0*sin(12.5664*w/L + 1.3)); }
 float roadX(float zz){ return roadR(zz+uTravel) - roadR(34.0+uTravel); }
@@ -109,9 +125,12 @@ void main(){
     float ledge = smoothstep(0.05,0.0,abs(f.y-0.14)-0.02) + smoothstep(0.035,0.0,abs(f.y-0.015));
     col = mix(col, vec3(0.55,0.65,0.85)*(0.6+0.4*ao), clamp(uSnow*ledge*smoothstep(200.0,20.0,dist), 0.0, 0.8));
     col *= 0.85 + 0.15*grime;
+    ${SNOWPAL ? 'col *= 0.3;   // 雪: 壁は濃紺のシルエットに' : ''}
+    float nf = ${SNOWPAL ? '0.3' : '1.0'};
     float wave = 0.5+0.5*sin(cell.y*0.42 - uTime*2.4 + id*2.0 + cell.x*0.7);
     float lit = step(0.40 - 0.22*uInten, r*0.9 + wave*0.35 - 0.1);
     vec3 wc = rainbow(id*0.37 + cell.y*0.03 + r*0.12 + uHue);
+    ${SNOWPAL ? `wc = mix(mix(vec3(0.78,0.88,1.0), vec3(0.55,0.75,0.95), r), vec3(1.0,0.78,0.48), step(0.9, h21(cell*1.7 + id*5.3)));   // 窓明かり: 白〜淡い青、ところどころ暖色` : ''}
     float glass = 0.55 + 0.9*(1.0-f.y);
     col += rainbow(uHue+0.62+v*0.004)*win*car*0.085*glass;
     col += wc*win*car*glass*(0.05 + 1.1*lit*(0.55+sp*0.9+uHat*0.4)*(0.6+0.8*r));
@@ -119,7 +138,7 @@ void main(){
     float hole = (1.0-car);
     float stripes = 0.5+0.5*sin(v*1.6 - uTime*5.0 + u*0.9);
     vec3 pc = rainbow(v*0.012 + id*0.2 + uHue*1.0 + stripes*0.15);
-    col += pc*hole*win*(0.12 + 0.55*stripes)*(0.5+uInten);
+    col += pc*hole*win*(0.12 + 0.55*stripes)*(0.5+uInten)*${SNOWPAL ? '0.4' : '1.0'};
     // ネオン看板: 帯域ごとのイコライザーが走る広告板 (声の出だしで一斉に光る)
     if (uExtras > 0.5 && h11(id*11.7) > 0.58 && v < vI.w*0.7) {
       float su = u/faceW; float sv = (v - 5.0)/7.0;
@@ -135,17 +154,17 @@ void main(){
     // キックで駆け上がる光のリング
     float sweepY = uKickAge*7.0;
     float sw = exp(-pow((v - sweepY)*0.09,2.0));
-    col += rainbow(v*0.01+uHue+0.3)*sw*(0.05+0.55*uKick)*(0.5+0.5*car)*step(uKickAge, 40.0);
+    col += rainbow(v*0.01+uHue+0.3)*sw*(0.05+0.55*uKick)*(0.5+0.5*car)*step(uKickAge, 40.0)*nf;
     // 縦のコーナーネオン + 階層ライン
     float de = min(u, faceW-u);
-    col += rainbow(id*0.37+uHue+0.5)*exp(-de*2.5)*(0.45+0.95*sp);
+    col += rainbow(id*0.37+uHue+0.5)*exp(-de*2.5)*(0.45+0.95*sp)*nf;
     float fl = abs(fract(v/14.0)-0.5);
-    col += rainbow(v*0.01+id+uHue)*smoothstep(0.47,0.5,fl)*0.35*(0.4+uInten);
+    col += rainbow(v*0.01+id+uHue)*smoothstep(0.47,0.5,fl)*0.35*(0.4+uInten)*nf;
   } else {
     col = vec3(0.0);
   }
   float rim = pow(1.0-max(dot(N,V),0.0), 3.0);
-  col += rainbow(uHue+dist*0.003)*rim*0.10;
+  col += rainbow(uHue+dist*0.003)*rim*${SNOWPAL ? '0.04' : '0.10'};
   // フォグ(加算ヘイズ)
   float fg = 1.0-exp(-dist*0.0046);
   vec3 fogC = rainbow(uHue+0.55+dist*0.0006)*(0.08+0.10*uInten) + vec3(0.015,0.0,0.055);
@@ -192,13 +211,25 @@ void main(){
     float nz = mix(mix(n1,n2,ff.x), mix(n3,n4,ff.x), ff.y);
     float sideM = smoothstep(9.0, 15.5, abs(x));
     float track = exp(-pow((abs(abs(x)-3.2)-0.0)*0.9, 2.0)) + exp(-pow((abs(abs(x)-9.6))*0.9, 2.0));
-    float cover = clamp((uSnow*(0.75 + 0.55*sideM) - 0.25 + nz*0.5)*1.6, 0.0, 1.0)*(1.0 - 0.75*track*(1.0-sideM));
+    float cover = ${SNOWPAL ? `clamp((uSnow*(0.15 + 1.0*sideM) - 0.25 + nz*0.5)*1.6, 0.0, 1.0)*0.8` : `clamp((uSnow*(0.75 + 0.55*sideM) - 0.25 + nz*0.5)*1.6, 0.0, 1.0)*(1.0 - 0.75*track*(1.0-sideM))`};
     vec3 sc = vec3(0.42,0.52,0.80)*(0.78 + 0.22*nz) + rainbow(uHue + z*0.003 + nz*0.3)*0.08;
     float lit = lane*0.9 + bars*0.4 + curb;
     col = mix(col, sc + lc*lit*0.25*(0.55+0.8*uInten), cover*0.92);
     vec2 gq = sp*9.0; float gr = h21(floor(gq));
     col += vec3(0.9,0.95,1.0)*step(0.993, gr)*smoothstep(0.4,0.0,length(fract(gq)-0.5))*(0.5+0.5*sin(uTime*7.0+gr*50.0))*cover*smoothstep(90.0,10.0,dist);
   }
+  ${SNOWPAL ? `{
+    // 濡れた冬のアスファルト/薄い氷: 街路樹の電球と窓明かりが、ぼんやり縦に伸びて映る
+    float wet = smoothstep(16.0, 13.0, abs(x));
+    vec3 Vd = normalize(cameraPosition - vW);
+    float fres = pow(1.0 - abs(Vd.y), 4.0);
+    float far = smoothstep(220.0, 15.0, dist);
+    float led = exp(-pow((abs(x) - 13.5)*0.45, 2.0))*(0.55 + 0.45*sin(z*0.8 + uTime*0.3));
+    float win = exp(-pow((abs(x) - 11.0)*0.18, 2.0))*(0.5 + 0.5*h21(floor(vec2(sign(x), z*0.35))));
+    col = mix(col, vec3(0.012,0.04,0.085), wet*0.6);
+    col += (vec3(1.0,0.85,0.54)*led*0.16 + vec3(0.5,0.72,0.9)*win*0.08 + vec3(0.06,0.14,0.26)*fres*0.7)*wet*far;
+    vec2 ice = vec2(x, z)*1.3; col += vec3(0.66,0.85,0.94)*smoothstep(0.82, 1.0, h21(floor(ice)))*0.05*wet*far;
+  }` : ''}
   // キックの衝撃波リップル
   float rr = uKickAge*5.5;
   float d2 = length(vec2(x, vW.z - 0.0));
@@ -269,7 +300,8 @@ void main(){
   float w = fbm(q3 + 1.6*wv);
   vec3 neb = rainbow(uHue + w*0.55 + el*0.2)*pow(w,2.4)*2.2;
   vec3 col = mix(vec3(0.004,0.0,0.03), rainbow(uHue+0.62)*0.12, smoothstep(0.9,-0.1,el));
-  col += neb*(0.45+0.4*uInten)*smoothstep(-0.15,0.45,el);
+  col += neb*(0.45+0.4*uInten)*smoothstep(-0.15,0.45,el)*${SNOWPAL ? '0.22' : '1.0'};
+  ${SNOWPAL ? 'col = mix(col, vec3(0.024,0.102,0.20), 0.35);   // 雪: 澄んだ深い夜の藍 #061A33' : ''}
   // 地平線のグロー
   float hor = exp(-pow(el*5.0,2.0));
   col += rainbow(uHue + 0.15 + atan(d.x,-d.z)*0.1)*hor*(0.26+0.28*uInten+0.2*uKick);
@@ -290,13 +322,13 @@ void main(){
   float lines = exp(-trap*4.0), web = exp(-trap2*1.6);
   vec3 mand = rainbow(trap2*0.6 + r*0.35 + uHue*1.5)*(lines*1.1 + web*0.35);
   float mmask = smoothstep(2.8, 0.6, r)*step(0.0, cz);
-  col += mand*mmask*(uMand.x + uMand.y*uInten);
+  col += mand*mmask*(uMand.x + uMand.y*uInten)*${SNOWPAL ? '0.45' : '1.0'};
   float ring = exp(-pow((fract(r*2.2 - uTime*0.15)-0.5)*8.0,2.0));
   col += rainbow(r + uHue)*ring*0.12*(0.4+uInten)*mmask;
   // ペイズリーの雲 (2層のパララックス)
   for (int i=0;i<2;i++){
     vec4 pc = paisleyLayer(d, i==0 ? 1.05 : 1.9, i==0 ? 0.03 : 0.055, float(i)*31.0);
-    col = mix(col, pc.rgb*(0.75+0.35*uInten+0.3*uKick+0.5*uVoxOn), pc.a);
+    col = mix(col, pc.rgb*(0.75+0.35*uInten+0.3*uKick+0.5*uVoxOn), pc.a*${SNOWPAL ? '0.3' : '1.0'});
   }
   // 星
   vec3 sd = floor(d*230.0); float sr = h21(sd.xy+sd.z*17.0);

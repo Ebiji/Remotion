@@ -78,16 +78,16 @@ void main(){
   // 氷の面: 扇形の角度でファセット、稜線(主軸と30度線)が光る
   float facet = 0.55 + 0.45*cos(a*6.0 + r*9.0 - uTime*0.7);
   float ridge = exp(-abs(q.y)*90.0)*step(r, L) + exp(-abs(a - 0.5236)*r*90.0)*step(r, plateR*1.25);
-  vec3 ice = vec3(0.70, 0.85, 1.0)*(0.55 + 0.45*facet);
+  vec3 ice = vec3(0.93, 0.965, 1.0)*(0.70 + 0.30*facet);   // 白が基調
   // 薄膜の干渉色(虹色)が縁と板の筋に乗る
   float film = r*2.6 + hexD*3.0 + uTime*0.05 + uHueOff;
-  vec3 irid = rainbow(uHue + film);
-  vec3 col = ice*fill*(0.85 + 0.6*uBeat + 0.9*uKick);
-  col += irid*edge*(0.9 + 0.8*uInten + 0.8*uVoxOn);
+  vec3 irid = mix(vec3(0.659, 0.847, 0.941), vec3(0.498, 0.722, 0.902), 0.5 + 0.5*sin(film*6.0));   // 縁はアイスブルー
+  vec3 col = ice*fill*(0.95 + 0.15*uBeat + 0.2*uKick);   // 静かに
+  col += irid*edge*(1.3 + 0.4*uInten + 0.4*uVoxOn);
   col += vec3(1.0)*ridge*fill*(0.5 + 0.6*uKick);
   col += irid*smoothstep(0.08, 0.0, rings)*step(plate, 0.0)*0.6;
-  col += rainbow(uHue + trap*3.0 + uHueOff + 0.3)*exp(-trap*30.0)*fill*0.5*(0.5 + uInten);
-  col += rainbow(uHue + 0.6 + r)*halo*(0.18 + 0.25*uInten + 0.35*uKick)*(1.0 - fill);
+  col += vec3(0.659, 0.847, 0.941)*exp(-trap*30.0)*fill*0.35*(0.5 + uInten);
+  col += vec3(0.498, 0.722, 0.902)*halo*(0.15 + 0.15*uInten + 0.1*uKick)*(1.0 - fill);
   // 結晶のきらめき
   vec2 gp = q*60.0; float gr = h21(floor(gp));
   col += vec3(1.0)*step(0.985, gr)*fill*(0.5 + 0.5*sin(uTime*9.0 + gr*80.0))*(0.8 + 1.5*uHat);
@@ -100,47 +100,50 @@ export const SNOW_VERT = /* glsl */ `
 ${COMMON}
 attribute vec4 aSeed;
 uniform float uPx, uFall;
-varying float vA; varying float vRot; varying float vSize; varying vec3 vC;
+varying float vA; varying float vRot; varying float vSize; varying vec3 vC; varying float vLayer;
 void main(){
   vec3 s = aSeed.xyz;
-  float span = uLen*0.62;
-  float zz = mod(s.z*span - uTravel*0.9, span) + 3.0;
+  // 3層: 手前=大きくぼけた雪片(12%) / 中景=標準(38%) / 奥=細かい粉雪(50%)
+  float layer = aSeed.w < 0.12 ? 0.0 : (aSeed.w < 0.5 ? 1.0 : 2.0);
+  float z0 = layer < 0.5 ? 3.0 : (layer < 1.5 ? 10.0 : 35.0);
+  float z1 = layer < 0.5 ? 26.0 : (layer < 1.5 ? 110.0 : uLen*0.62);
+  float zz = z0 + mod(s.z*(z1 - z0) - uTravel*0.9, z1 - z0);
   float H = 70.0;
-  float sp = 2.2 + 3.5*aSeed.w;
-  float y = mod(s.y*H - uTime*sp - uKick*1.5*aSeed.w, H) - 2.0;
+  float sp = (layer < 0.5 ? 1.5 : (layer < 1.5 ? 1.15 : 0.85))*(0.8 + 0.4*fract(aSeed.w*7.3));   // ゆっくり
+  float y = mod(s.y*H - uTime*sp, H) - 2.0;
   float x = (s.x - 0.5)*(70.0 + zz*0.9) + roadX(zz);
-  x += sin(uTime*(0.5 + aSeed.w) + s.y*40.0)*2.0 + sin(uTime*0.23 + s.z*9.0)*3.0;
-  // キックの突風: 道の中心から外へ渦を巻く
-  float gust = uKick*(0.6 + uInten);
-  x += sign(s.x - 0.5)*gust*2.2*aSeed.w;
-  y += sin(s.x*30.0 + uTime*3.0)*0.6*uVoxOn;
+  x += sin(uTime*0.35 + s.y*12.0)*1.3 + sin(uTime*0.9 + s.z*20.0)*0.35;   // 風でわずかに揺れる
   vec4 mv = viewMatrix*vec4(x, y, 34.0 - zz, 1.0);
   gl_Position = projectionMatrix*mv;
   float show = step(h11(aSeed.w*71.3 + s.x*13.0), uFall);
-  float sz = (0.55 + 1.25*aSeed.w*aSeed.w)*(1.0 + 0.35*uKick);
-  gl_PointSize = clamp(sz*uPx*190.0/ -mv.z, 1.5, 64.0)*show;
-  vSize = gl_PointSize;
-  vRot = s.x*6.28 + uTime*(0.5 + aSeed.w)*(s.y > 0.5 ? 1.0 : -1.0);
-  vA = show*smoothstep(span + 3.0, span*0.75, zz)*smoothstep(2.0, 9.0, zz)*smoothstep(-2.0, 3.0, y);
-  vC = mix(vec3(0.82, 0.9, 1.0), rainbow(uHue + aSeed.w + zz*0.003), 0.18 + 0.2*uVoxOn);
+  float sz = layer < 0.5 ? 3.2 + 1.8*s.x : (layer < 1.5 ? 1.0 + 0.5*s.x : 0.45 + 0.25*s.x);
+  gl_PointSize = clamp(sz*uPx*190.0/ -mv.z, 1.2, 40.0*uPx)*show;
+  vSize = gl_PointSize; vLayer = layer;
+  vRot = s.x*6.28 + uTime*0.4*(s.y > 0.5 ? 1.0 : -1.0);
+  vA = show*smoothstep(z1, z1 - (z1 - z0)*0.25, zz)*smoothstep(z0, z0 + 3.0, zz)*smoothstep(-2.0, 3.0, y)*(layer < 0.5 ? 0.38 : (layer < 1.5 ? 0.85 : 0.6));
+  vC = mix(vec3(1.0), vec3(0.933, 0.965, 1.0), s.y);
 }`;
 export const SNOW_FRAG = /* glsl */ `
 ${COMMON}
-varying float vA; varying float vRot; varying float vSize; varying vec3 vC;
+varying float vA; varying float vRot; varying float vSize; varying vec3 vC; varying float vLayer;
 void main(){
   vec2 c = gl_PointCoord*2.0 - 1.0;
   c = rot(vRot)*c;
   float r = length(c);
   if (r > 1.0 || vA < 0.01) discard;
-  float a = atan(c.y, c.x);
-  // 大きい粒は六花の形、小さい粒は丸い点
-  float arms = pow(abs(cos(a*3.0)), 18.0)*smoothstep(1.0, 0.15, r);
-  float side = pow(abs(cos(a*3.0 + 1.5708)), 30.0)*smoothstep(0.75, 0.4, r)*smoothstep(0.25, 0.45, r);
-  float star = clamp(arms + side*0.6 + exp(-r*r*14.0), 0.0, 1.0);
-  float dot0 = exp(-r*r*4.0)*(1.0 - r);
-  float m = mix(dot0, star, smoothstep(9.0, 22.0, vSize));
+  float m;
+  if (vLayer < 0.5) {
+    m = smoothstep(1.0, 0.75, r)*(0.55 + 0.45*smoothstep(0.55, 0.95, r));   // ぼけた円(縁が少し明るい)
+  } else if (vLayer < 1.5) {
+    float a = atan(c.y, c.x);
+    float arms = pow(abs(cos(a*3.0)), 18.0)*smoothstep(1.0, 0.15, r);
+    float star = clamp(arms + exp(-r*r*14.0), 0.0, 1.0);
+    m = mix(exp(-r*r*4.0)*(1.0 - r), star, smoothstep(9.0, 22.0, vSize));
+  } else {
+    m = exp(-r*r*5.0)*(1.0 - r);
+  }
   float al = m*vA;
-  gl_FragColor = vec4(vC*al*1.5, al);
+  gl_FragColor = vec4(vC*al*0.9, al);
 }`;
 
 /** 雪だるま: 3段の雪玉・炭の目とボタン・人参の鼻・枝の腕・帽子・マフラー。

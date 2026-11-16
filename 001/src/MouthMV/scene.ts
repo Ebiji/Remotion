@@ -369,7 +369,7 @@ export class MVScene {
     const bp = A.beatPos(f); const bf = ((bp % 1) + 1) % 1;
     const bar = Math.floor(bp / 4);
     const hueP = bp / 16;
-    const hue = 0.34 + 0.07 * Math.sin(t * 0.045) + 0.09 * Math.sin(hueP * 1.7) * (0.5 + 0.5 * inten); // 青を中心に揺れる基調色
+    const hue = IS_SN ? 0.34 : 0.34 + 0.07 * Math.sin(t * 0.045) + 0.09 * Math.sin(hueP * 1.7) * (0.5 + 0.5 * inten); // 青を中心に揺れる基調色
     U.uTime.value = t; U.uTravel.value = A.travel[f]; U.uKick.value = kick; U.uSnare.value = snare; U.uHat.value = hat;
     U.uBass.value = bass; U.uMid.value = A.mid[f]; U.uInten.value = inten; U.uHue.value = hue;
     U.uBeat.value = Math.exp(-bf * 4); U.uKickAge.value = A.kickAge[f]; U.uBeatPos.value = bp;
@@ -466,8 +466,8 @@ export class MVScene {
     P.uDraw.value = IS_SN ? SN_KAL.draw[f] : 0;
     P.uFScale.value = IS_SN ? SN_KAL.scale[f] : 1; P.uCover.value = IS_SN ? SN_KAL.cover[f] : 0; P.uFlash.value = Math.max(0.08 * snare * inten, dropHit * 0.4);
     P.uZoom.value = 0.012 * kick * (0.35 + inten) + 0.005 * snare;
-    this.bloom.strength = 0.36 + 0.3 * kick + 0.18 * inten;
-    this.bloom.threshold = 0.8; this.bloom.radius = 0.75;
+    this.bloom.strength = IS_SN ? 0.55 + 0.1 * kick : 0.36 + 0.3 * kick + 0.18 * inten;
+    this.bloom.threshold = IS_SN ? 1.25 : 0.8; this.bloom.radius = IS_SN ? 0.55 : 0.75;   // 雪: にじみはイルミネーションと結晶の明るい所だけ
     const t0 = performance.now();
     this.composer.render();
     if (this.timing) { const gl = this.renderer.getContext(); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4)); }

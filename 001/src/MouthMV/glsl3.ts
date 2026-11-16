@@ -1,4 +1,4 @@
-import {COMMON, BLDG_VERT} from './glsl';
+import {COMMON, BLDG_VERT, SNOWPAL} from './glsl';
 
 /** 東京の街の灯り: ビルの壁から通りへ突き出す縦型のネオン看板。文字・記号は入れず、ネオン管の枠と内側の発光だけ */
 export const SIGN_VERT = /* glsl */ `
@@ -97,12 +97,12 @@ void main(){
   if (vK < 0.5) {
     // 東京タワー風: インターナショナルオレンジと白の塗り分けを、暖色のライトアップで照らす
     float band = step(0.5, fract(vH*7.0));
-    vec3 paint = mix(vec3(1.0,0.30,0.06), vec3(1.0,0.86,0.70), band);
+    vec3 paint = ${SNOWPAL ? `mix(mix(vec3(0.72,0.76,0.82), vec3(1.0,0.45,0.2), 0.3), vec3(0.93,0.96,1.0), band)` : `mix(vec3(1.0,0.30,0.06), vec3(1.0,0.86,0.70), band)`};
     col = paint*(0.55 + 0.5*uBass + 0.25*uInten);
   } else {
     // スカイツリー風: 水色(粋)と紫(雅)が4小節ごとに入れ替わる
     float m = smoothstep(0.42, 0.58, abs(fract(uBeatPos/32.0)*2.0 - 1.0));
-    col = mix(vec3(0.40,0.72,1.0), vec3(0.72,0.36,1.0), m)*(0.5 + 0.5*uBass + 0.25*uInten);
+    col = ${SNOWPAL ? `mix(vec3(0.498,0.722,0.902), vec3(0.93,0.96,1.0), m)` : `mix(vec3(0.40,0.72,1.0), vec3(0.72,0.36,1.0), m)`}*(0.5 + 0.5*uBass + 0.25*uInten);
   }
   col *= 0.75 + 0.5*rim;
   float ring = exp(-pow((vH - uKickAge/22.0)*16.0, 2.0))*step(uKickAge, 22.0);
