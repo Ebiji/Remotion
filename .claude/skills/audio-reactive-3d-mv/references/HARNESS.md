@@ -82,6 +82,17 @@ node scripts/render_title.mjs 3840 2160 out/title4k      # 450枚の透明PNG(�
 
 出力の動画(`out/*.mp4`)とチャンク(`out/m*_*k`)は **git に入れない**(`.gitignore`)。`git add -A` した後は、`001/out` を外す。
 
+### Tokyo Snows(冬の色版・題名つき)
+```
+node scripts/use_song.mjs snow
+setsid nohup bash scripts/render_supervised.sh out/sn2_4k 100 3840 2160 <log> > /dev/null 2>&1 < /dev/null & disown
+node scripts/render_title.mjs 3840 2160 out/title_snow "Tokyo Snows" SnowTitle
+node scripts/finish_video.mjs out/sn2_4k out/snow-tokyo-winter-title-1080p.mp4 std vb12000 title=out/title_snow tstart=5
+```
+- 'snow' は曲のあとの無音が**1秒**(`TAIL` の既定が曲で変わる。`tail=<秒>` で上書き可)。
+- **コンテナの見張り(重要)**: `render_supervised.sh` は **`setsid nohup … & disown`** で切り離す(背景タスクの2時間の上限で一緒に殺されないように)。完了待ちの背景タスク(`until grep -q "ALL DONE" …`、timeout 7200000)は**常に1本以上**動かし、切れる前(1時間20分〜1時間45分)に次を重ねる。背景タスクが無いとコンテナは止められる。仕上げは `mkdir out/.finish_*_lock` で1回だけ走らせる。
+- ディスクが足りなくなったら、古い4Kチャンク(`out/*_4k`)や題名PNGを消す。**消す前にユーザーに確認する**(作り直しに何時間もかかるもの)。
+
 ## 6. コミット・プッシュ
 - ブランチ運用は、依頼のあるブランチ。**PRは、依頼されたときだけ**。
 - 動画やチャンクをコミットしない(誤って入れたら `git reset --soft`、`.gitignore`、再コミット)。

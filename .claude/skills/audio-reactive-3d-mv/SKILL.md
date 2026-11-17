@@ -10,6 +10,7 @@ description: 曲に合わせて動く、高精細な3D(three.js)×Remotionのサ
 
 > 運用(書き出し・止まらない仕組み・エンコード・仕様)は **`references/HARNESS.md`**。
 > 設計の中身(v1とv6の違い、パラメータ)は **`references/design-v1-v6.md`**。
+> 3つ目の成功例 **Tokyo Snows**(雪の結晶・雪だるま・冬の色・30秒から暖かくなる仕掛け)は **`references/design-snow.md`**。
 > ユーザーに言われた失敗と好み(繰り返さない)は **`references/lessons.md`**。
 
 ## いつ使うか

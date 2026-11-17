@@ -5,6 +5,7 @@ import {MorphChain, CHAIN_DURATION} from './MorphChain';
 import {QuantumMorph, QUANTUM_DURATION} from './QuantumMorph';
 import {MouthMV, MOUTH_DURATION} from './MouthMV/MouthMV';
 import {TitleOverlay, TITLE_DURATION} from './TitleOverlay';
+import {SnowTitle, SNOW_TITLE_DURATION} from './SnowTitle';
 
 export const Root: React.FC = () => (
   <>
@@ -23,5 +24,6 @@ export const Root: React.FC = () => (
   <Composition id="MouthMV" component={MouthMV} durationInFrames={MOUTH_DURATION} fps={30} width={1280} height={720} />
   <Composition id="TitleOverlay" component={TitleOverlay} defaultProps={{text: 'Flowers & Towers', dur: TITLE_DURATION}} durationInFrames={TITLE_DURATION} fps={30} width={2560} height={1440} />
   <Composition id="TitleOverlay10" component={TitleOverlay} defaultProps={{text: 'Flowers & Towers', dur: 300}} durationInFrames={300} fps={30} width={2560} height={1440} />
+  <Composition id="SnowTitle" component={SnowTitle} durationInFrames={SNOW_TITLE_DURATION} fps={30} width={2560} height={1440} />
   </>
 );
