@@ -57,10 +57,15 @@ if (!hasSys) {
   }
   const outv = `[o]scale=out_color_matrix=bt709:out_range=tv:flags=accurate_rnd+full_chroma_int,format=yuv420p,fps=30[v]`;
   const rate = vb || 10000;
-  const venc = ['-c:v', 'libx264', '-preset', 'slow', '-profile:v', 'high', '-level', '4.2', '-b:v', `${rate}k`, '-maxrate', `${Math.round(rate * 1.2)}k`, '-bufsize', `${rate * 2}k`, '-pix_fmt', 'yuv420p', '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-color_range', 'tv', '-g', '60', '-fps_mode', 'cfr'];
-  const logf = path.resolve(os.tmpdir(), `x264pass_${Date.now()}`);
-  ff([...inputs, '-filter_complex', `${vf};${outv}`, '-map', '[v]', ...venc, '-pass', '1', '-passlogfile', logf, '-an', '-t', String(total), '-f', 'mp4', win ? 'NUL' : '/dev/null']);
-  ff([...inputs, '-filter_complex', `${vf};${outv};[1:a]${fade},apad=whole_dur=${total}[a]`, '-map', '[v]', '-map', '[a]', ...venc, '-pass', '2', '-passlogfile', logf, '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-t', String(total), '-movflags', '+faststart', outFile]);
+  const color = ['-pix_fmt', 'yuv420p', '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-color_range', 'tv', '-fps_mode', 'cfr'];
+  const logf = path.resolve(os.tmpdir(), `x26pass_${Date.now()}`);
+  // std + hevc: 4Kで細部まで見える高画質版(H.265 Main、2パス)。std のみ: X向け H.264 High
+  const venc = (pass) => opts.includes('hevc')
+    ? ['-c:v', 'libx265', '-preset', 'slow', '-profile:v', 'main', '-b:v', `${rate}k`, '-tag:v', 'hvc1', ...color,
+      '-x265-params', `pass=${pass}:stats=${logf}.x265:vbv-maxrate=${Math.round(rate * 1.6)}:vbv-bufsize=${rate * 3}:keyint=60:aq-mode=3:psy-rd=2.0:psy-rdoq=1.5:log-level=error:colorprim=bt709:transfer=bt709:colormatrix=bt709`]
+    : ['-c:v', 'libx264', '-preset', 'slow', '-profile:v', 'high', '-level', '4.2', '-b:v', `${rate}k`, '-maxrate', `${Math.round(rate * 1.2)}k`, '-bufsize', `${rate * 2}k`, '-g', '60', ...color, '-pass', String(pass), '-passlogfile', logf];
+  ff([...inputs, '-filter_complex', `${vf};${outv}`, '-map', '[v]', ...venc(1), '-an', '-t', String(total), '-f', 'mp4', win ? 'NUL' : '/dev/null']);
+  ff([...inputs, '-filter_complex', `${vf};${outv};[1:a]${fade},apad=whole_dur=${total}[a]`, '-map', '[v]', '-map', '[a]', ...venc(2), '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-t', String(total), '-movflags', '+faststart', outFile]);
 } else {
   const total = +(dur + TAIL).toFixed(3);        // 曲の長さ + 暗転 (Mouth2は約2分34.6秒)
   const base = `[0:v]tpad=stop_mode=clone:stop_duration=${TAIL + 1},trim=duration=${total},setpts=PTS-STARTPTS${scaleOpt ? `,scale=${scaleOpt.slice(1)}:-2:flags=lanczos` : ''}`;
