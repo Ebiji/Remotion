@@ -91,6 +91,7 @@ node scripts/finish_video.mjs out/sn2_4k out/snow-tokyo-winter-title-1080p.mp4 s
 ```
 - 'snow' は曲のあとの無音が**1秒**(`TAIL` の既定が曲で変わる。`tail=<秒>` で上書き可)。
 - **コンテナの見張り(重要)**: `render_supervised.sh` は **`setsid nohup … & disown`** で切り離す(背景タスクの2時間の上限で一緒に殺されないように)。完了待ちの背景タスク(`until grep -q "ALL DONE" …`、timeout 7200000)は**常に1本以上**動かし、切れる前(1時間20分〜1時間45分)に次を重ねる。背景タスクが無いとコンテナは止められる。仕上げは `mkdir out/.finish_*_lock` で1回だけ走らせる。
+  - **仕上げ(4K H.265 の2パスは1時間以上)も `setsid nohup bash -c "node scripts/finish_video.mjs … > log; echo FINISH_EXIT=$? >> log" & disown` で切り離す。** 待機ループの中で直接走らせると、ループが2時間の上限で殺されたときに一緒に死ぬ(Scat v2 4K で1パス目50分を失った)。待機ループは `until grep -q FINISH_EXIT log` で待つだけにする。
 - ディスクが足りなくなったら、古い4Kチャンク(`out/*_4k`)や題名PNGを消す。**消す前にユーザーに確認する**(作り直しに何時間もかかるもの)。
 
 ## 6. コミット・プッシュ
