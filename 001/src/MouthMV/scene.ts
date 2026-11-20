@@ -107,6 +107,7 @@ export class MVScene {
       uTime: {value: 0}, uTravel: {value: 0}, uLen: {value: A.LEN}, uKick: {value: 0}, uSnare: {value: 0}, uHat: {value: 0},
       uBass: {value: 0}, uMid: {value: 0}, uInten: {value: 0}, uHue: {value: 0}, uBeat: {value: 0}, uKickAge: {value: 99},
       uBeatPos: {value: 0}, uKickIdx: {value: 0}, uBend: {value: 0}, uRoadAmp: {value: IS_V1 ? 0 : 1}, uExtras: {value: V1LOOK ? 1 : 0}, uMand: {value: IS_V1 ? new THREE.Vector2(0.55, 0.5) : TKLIKE ? new THREE.Vector2(0.4, 0.35) : new THREE.Vector2(0.2, 0.2)}, uHop: {value: TKLIKE ? 1 : 0}, uSnow: {value: 0}, uWarm: {value: 0}, uIllum: {value: IS_SN ? 1 : 0}, uFall: {value: 0}, uMan: {value: 0}, uMelt: {value: 0}, uVox: {value: 0}, uVoxOn: {value: 0}, uPitch: {value: 0}, uSpec: {value: this.spec}, uPlant: {value: 0},
+      uFx: {value: IS_SN ? 0 : 1}, uAnti: {value: 0}, uGate: {value: 1}, uExcite: {value: 0}, uIntro: {value: 1},
     };
     const U = this.U;
     const mk = (vs: string, fs: string, extra: any = {}, params: THREE.ShaderMaterialParameters = {}) =>
@@ -373,6 +374,8 @@ export class MVScene {
     U.uTime.value = t; U.uTravel.value = A.travel[f]; U.uKick.value = kick; U.uSnare.value = snare; U.uHat.value = hat;
     U.uBass.value = bass; U.uMid.value = A.mid[f]; U.uInten.value = inten; U.uHue.value = hue;
     U.uBeat.value = Math.exp(-bf * 4); U.uKickAge.value = A.kickAge[f]; U.uBeatPos.value = bp;
+    const ex = IS_SN ? 0 : A.excite[f];   // 派手さ: 冒頭5秒と山場のあと約3秒
+    U.uAnti.value = A.kickAnti[f]; U.uGate.value = A.gate[f]; U.uExcite.value = ex; U.uIntro.value = A.intro[f];
     // 各細かさの担当距離にいる個体だけを毎フレーム集めて描く
     const tr = A.travel[f];
     for (const L of this.plantLods) {
@@ -428,7 +431,7 @@ export class MVScene {
     this.camera.lookAt(pos.clone().addScaledVector(dir, 300));
     const rollDir = A.snareIdx[f] % 2 ? 1 : -1;
     this.camera.rotateZ(roll + rollDir * 0.008 * snare * (0.4 + inten));
-    this.camera.fov = 58 + fovAdd + 3.5 * kick * (0.5 + inten) + 1.2 * snare;
+    this.camera.fov = 58 + fovAdd + 3.5 * kick * (0.5 + inten) * (1 + (IS_SN ? 0 : 0.35 + 0.9 * ex)) + 1.2 * snare;   // キックで画面が押し寄せる(冒頭と山場は強く)
     this.camera.updateProjectionMatrix();
 
     // 巨大花
@@ -467,7 +470,7 @@ export class MVScene {
     P.uDraw.value = IS_SN ? SN_KAL.draw[f] : 0;
     P.uFScale.value = IS_SN ? SN_KAL.scale[f] : 1; P.uCover.value = IS_SN ? SN_KAL.cover[f] : 0; P.uFlash.value = Math.max(0.08 * snare * inten, dropHit * 0.4);
     P.uZoom.value = 0.012 * kick * (0.35 + inten) + 0.005 * snare;
-    this.bloom.strength = IS_SN ? 0.55 + 0.1 * kick : 0.36 + 0.3 * kick + 0.18 * inten;
+    this.bloom.strength = IS_SN ? 0.55 + 0.1 * kick : 0.36 + 0.3 * kick + 0.18 * inten + 0.3 * ex;
     this.bloom.threshold = IS_SN ? 1.25 : 0.8; this.bloom.radius = IS_SN ? 0.55 : 0.75;   // 雪: にじみはイルミネーションと結晶の明るい所だけ
     const t0 = performance.now();
     this.composer.render();

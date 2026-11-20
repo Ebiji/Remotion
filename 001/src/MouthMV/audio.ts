@@ -137,3 +137,41 @@ export const melodyTex = (() => {
   }
   return d;
 })();
+
+/* ===== 大げさな動き (Flowers & Towers 改修。雪版では使わない) ===== */
+/** 予備動作: キックの直前3フレームで 0→1 に立ち上がる(ビルが沈んで膨らむ「溜め」)。kick は1フレーム前倒しなので、その前の3フレーム */
+export const kickAnti = (() => {
+  const o = new Float32Array(N);
+  for (const k of raw.kicks as number[]) {
+    for (let j = 1; j <= 3; j++) { const f = k - 1 - j; if (f >= 0) o[f] = Math.max(o[f], (4 - j) / 3); }
+  }
+  return o;
+})();
+/** 派手さの包絡: 冒頭5秒は1、その後は山場(dropFlash)のたびに1へ再点火して約3秒で減衰 */
+export const excite = (() => {
+  const o = new Float32Array(N);
+  let e = 0;
+  const k = Math.exp(-1 / 30);
+  for (let f = 0; f < N; f++) {
+    e *= k;
+    if (f < 150 || dropFlash[f] >= 0.999) e = 1;
+    o[f] = e;
+  }
+  return o;
+})();
+/** 踊りのゲート: 静かな所ではEQダンスとスネアの跳ねを絞る(下限0.12)。派手な区間(excite)では開けたまま */
+export const gate = new Float32Array(N).map((_, f) => {
+  const x = Math.min(1, Math.max(0, (inten[f] - 0.18) / 0.24));
+  return Math.max(0.12 + 0.88 * x * x * (3 - 2 * x), excite[f]);
+});
+/** 冒頭: 最初のキックで街が地面から噴き上がり、行き過ぎて弾んでから落ち着く(0→1、オーバーシュートあり) */
+export const intro = (() => {
+  const o = new Float32Array(N).fill(1);
+  const k0 = Math.max(0, ((raw.kicks as number[])[0] ?? 0) - 1);
+  for (let f = 0; f < Math.min(N, k0 + 90); f++) {
+    if (f < k0) { o[f] = 0.04; continue; }
+    const x = (f - k0) / 30;
+    o[f] = 1 - Math.exp(-x * 4.0) * Math.cos(x * 9.0) * 0.96;
+  }
+  return o;
+})();

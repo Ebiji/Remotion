@@ -21,6 +21,7 @@ vec3 rainbow(float h){vec3 c=0.5+0.5*cos(6.28318*(h+vec3(0.0,0.33,0.67))); c = c
 /** 共有GLSL: ユニフォーム・ノイズ・虹パレット・ビルの挙動(ビルと植物で同一計算) */
 export const COMMON = /* glsl */ `
 uniform float uTime, uTravel, uLen, uKick, uSnare, uHat, uBass, uMid, uInten, uHue, uBeat, uKickAge, uBeatPos, uKickIdx, uBend, uVox, uVoxOn, uPitch, uRoadAmp, uExtras, uSnow, uWarm;
+uniform float uFx, uAnti, uGate, uExcite, uIntro;   // 大げさな動き(雪版は uFx=0 で無効)
 uniform vec2 uMand;
 uniform float uSpec[16];
 float h11(float p){p=fract(p*.1031);p*=p+33.33;p*=p+p;return fract(p);}
@@ -38,7 +39,7 @@ float specAt(float i){
 export const BLDG_VERT = /* glsl */ `
 attribute vec4 aInst;   // x, z0, width, hmax
 attribute vec4 aInst2;  // id, depth, band, lane
-struct Bd { vec3 base; float h; float zz; float rise; float sp; };
+struct Bd { vec3 base; float h; float zz; float rise; float sp; float sq; };
 Bd bldg(){
   Bd b;
   float zz = mod(aInst.y - uTravel, uLen);
@@ -51,9 +52,18 @@ Bd bldg(){
   float wave = pow(0.5+0.5*cos(6.2832*(uBeatPos*0.5 - b.zz/150.0)), 4.0); // 拍ごとに手前へ走る波
   float eq = pow(clamp(b.sp, 0.0, 1.3), 1.3);
   float hop = uSnare*step(0.5, h11(aInst2.x*13.0));
-  float dyn = 1.45*eq*(0.55+0.7*uInten) + 0.85*stomp + 0.6*wave*(0.25+uInten) + 0.5*hop;
+  float g = mix(1.0, uGate, uFx);                              // 静かな所ではEQと跳ねを絞る(キックの踏み込みは残す)
+  float ex = uExcite*uFx;
+  // キックの衝撃波: 手前(zz=0)から道を走り、波面が届いたビルから順に跳ね上がる
+  float front = uKickAge*7.0;
+  float shock = exp(-pow(zz - front, 2.0)/800.0)*exp(-uKickAge/16.0)*step(uKickAge, 60.0)*uFx;
+  float dyn = 1.45*eq*(0.55+0.7*uInten)*g + 0.85*stomp + 0.6*wave*(0.25+uInten) + 0.5*hop*g
+            + 1.6*shock*(0.6 + 0.9*ex);
+  dyn *= 1.0 + uFx*(0.15 + 0.85*ex);                          // ふだんも1.15倍、冒頭と山場は最大2倍
   float m = 0.16 + 0.28*uInten + dyn;
-  b.h = aInst.w*min(m, 2.2)*b.rise;
+  float anti = uAnti*uFx;
+  b.h = aInst.w*min(m, 2.2 + 1.0*uFx)*b.rise*(1.0 - 0.30*anti)*mix(1.0, uIntro, uFx);   // 拍の直前に30%沈む(溜め)
+  b.sq = 1.0 + 0.18*anti;                                    // 沈むときに幅が18%膨らむ
   b.base = vec3(aInst.x + roadX(zz), 0.0, 34.0 - zz);
   return b;
 }
@@ -70,7 +80,7 @@ void main(){
   // 塔の段(セットバック)と尖塔: 建物ごとに形が変わる
   float flag = step(0.5, h11(aInst2.x*5.3)), flag2 = step(0.55, h11(aInst2.x*8.1));
   float sc = aTier < 0.5 ? 1.0 : (aTier < 1.5 ? mix(1.0, 0.78, flag) : (aTier < 2.5 ? mix(1.0, 0.54, flag) : 0.07*flag2));
-  vec3 w = vec3(b.base.x + p.x*aInst.z*sc, p.y*b.h, b.base.z + p.z*aInst2.y*sc);
+  vec3 w = vec3(b.base.x + p.x*aInst.z*sc*b.sq, p.y*b.h, b.base.z + p.z*aInst2.y*sc*b.sq);
   vW = w; vN = normal; vP = position; vI = vec4(aInst2.x, b.zz, b.sp, b.h); vS = vec2(aInst.z*sc, aInst2.y*sc);
   gl_Position = projectionMatrix*viewMatrix*vec4(w,1.0);
 }`;
